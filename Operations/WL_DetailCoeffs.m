@@ -19,13 +19,19 @@ function out = WL_DetailCoeffs(y, wname, maxlevel)
 % Statistics on the detail coefficients.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -121,9 +127,9 @@ out.std_median = std(medians);
 out.std_max = std(maxs);
 
 % At what level is the maximum
-out.wheremax_mean = find(means == means_s(1));
-out.wheremax_median = find(medians == medians_s(1));
-out.wheremax_max = find(maxs == maxs_s(1));
+out.wheremax_mean = find(means == means_s(1),1,'first');
+out.wheremax_median = find(medians == medians_s(1),1,'first');
+out.wheremax_max = find(maxs == maxs_s(1),1,'first');
 
 % Size of maximum (relative to next maximum)
 out.max1on2_mean = means_s(1)/means_s(2);

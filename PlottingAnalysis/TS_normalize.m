@@ -1,10 +1,9 @@
-function outputFileName = TS_normalize(normFunction,filterOptions,fileName_HCTSA,classVarFilter,subs)
+function outputFileName = TS_normalize(normFunction,filterOptions,fileName_HCTSA,classVarFilter)
 % TS_normalize  Trims and normalizes data from an hctsa analysis.
 %
-% Reads in data from HCTSA.mat, writes a trimmed, normalized version to
-% HCTSA_N.mat
-% Normalization often involves a rescaling of each feature to the unit interval
-% for visualization and clustering.
+% Reads in data from HCTSA.mat, writes a trimmed, normalized version to HCTSA_N.mat
+% For many normalization settings, each feature is normalized to the unit interval
+% for the purposes of visualization and clustering.
 %
 %---INPUTS:
 % normFunction: String specifying how to normalize the data.
@@ -14,25 +13,25 @@ function outputFileName = TS_normalize(normFunction,filterOptions,fileName_HCTSA
 %                [row proportion, column proportion]. If one of the filterOptions
 %                is set to 1, will have no bad values in your matrix.
 %
-% fileName_HCTSA: Custom filename to import. Default is 'HCTSA.mat'.
+% fileName_HCTSA: Custom hctsa data to import. Default: loaded from 'HCTSA.mat'.
 %
 % classVarFilter: whether to filter on zero variance of any given class (which
 %                 can cause problems for many classification algorithms).
-%
-% subs [opt]: Only normalize and trim a subset of the data matrix. This can be used,
-%             for example, to analyze just a subset of the full space, which can
-%             subsequently be clustered and further subsetted using TS_cluster...
-%             subs in the form {[rowrange],[columnrange]} (rows and columns to
-%             keep, from HCTSA.mat).
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -50,9 +49,12 @@ if nargin < 1 || isempty(normFunction)
 end
 
 if nargin < 2 || isempty(filterOptions)
-    filterOptions = [0.90, 1];
-    % By default remove less than 90%-good-valued time series, & then less than
+    filterOptions = [0.70,1];
+    % By default remove less than 70%-good-valued time series, & then less than
     % 100%-good-valued operations.
+end
+if any(filterOptions > 1)
+    error('Set filterOptions as a length-2 vector with elements in the unit interval');
 end
 fprintf(1,['Removing time series with more than %.2f%% special-valued outputs\n' ...
             'Removing operations with more than %.2f%% special-valued outputs\n'], ...
@@ -64,12 +66,7 @@ if nargin < 3 || isempty(fileName_HCTSA)
 end
 
 if nargin < 4
-    classVarFilter = 0; % don't filter on individual class variance > 0 by default
-end
-
-if nargin < 5
-    % Empty by default, i.e., don't subset:
-    subs = {};
+    classVarFilter = false; % don't filter on individual class variance > 0 by default
 end
 
 % --------------------------------------------------------------------------
@@ -78,12 +75,13 @@ end
 
 % Load data:
 [TS_DataMat,TimeSeries,Operations,whatDataFile] = TS_LoadData(fileName_HCTSA);
-load(whatDataFile,'TS_Quality','MasterOperations');
+TS_Quality = TS_GetFromData(fileName_HCTSA,'TS_Quality');
+MasterOperations = TS_GetFromData(fileName_HCTSA,'MasterOperations');
 
-% First check that fromDatabase exists (for back-compatability)
+% Check that fromDatabase exists (legacy)
 fromDatabase = TS_GetFromData(fileName_HCTSA,'fromDatabase');
 if isempty(fromDatabase)
-    fromDatabase = 1; % (legacy: set to 1 by default)
+    fromDatabase = true; % (legacy)
 end
 
 % Check that we have the groupNames if already assigned labels
@@ -100,29 +98,6 @@ gitInfo = TS_GetFromData(fileName_HCTSA,'gitInfo');
 % trimmed and normalized, and then saved to HCTSA_N.mat
 %-------------------------------------------------------------------------------
 
-% ------------------------------------------------------------------------------
-%% Subset using given indices, subs
-% ------------------------------------------------------------------------------
-if ~isempty(subs)
-    kr0 = subs{1}; % rows to keep (0)
-    if ~isempty(kr0)
-        fprintf(1,'Filtered down time series by given subset; from %u to %u.\n',...
-                    size(TS_DataMat,1),length(kr0));
-        TS_DataMat = TS_DataMat(kr0,:);
-        TS_Quality = TS_Quality(kr0,:);
-        TimeSeries = TimeSeries(kr0);
-    end
-
-    kc0 = subs{2}; % columns to keep (0)
-    if ~isempty(kc0)
-        fprintf(1,'Filtered down operations by given subset; from %u to %u.\n',...
-            size(TS_DataMat,2),length(kc0));
-        TS_DataMat = TS_DataMat(:,kc0);
-        TS_Quality = TS_Quality(:,kc0);
-        Operations = Operations(kc0);
-    end
-end
-
 % --------------------------------------------------------------------------
 %% Trim down bad rows/columns
 % --------------------------------------------------------------------------
@@ -131,8 +106,16 @@ end
 TS_DataMat(~isfinite(TS_DataMat)) = NaN; % Convert all nonfinite values to NaNs for consistency
 % Need to also incorporate knowledge of bad entries in TS_Quality and filter these out:
 TS_DataMat(TS_Quality > 0) = NaN;
-fprintf(1,'There are %u special values in the data matrix.\n',sum(TS_Quality(:) > 0));
-% Now all bad values are NaNs, and we can get on with the job of filtering them out
+numSpecialValues = sum(TS_Quality(:) > 0);
+fprintf(1,'\nThere are %u special values in the data matrix.\n',numSpecialValues);
+percGoodRows = mean(~isnan(TS_DataMat),2)*100;
+percGoodCols = mean(~isnan(TS_DataMat),1)*100;
+fprintf(1,'(pre-filtering): Time series vary from %.2f--%.2f%% good values\n',...
+                min(percGoodRows),max(percGoodRows));
+fprintf(1,'(pre-filtering): Features vary from %.2f--%.2f%% good values\n',...
+                min(percGoodCols),max(percGoodCols));
+
+% Now that all bad values are NaNs, and we can get on with the job of filtering them out
 
 % (*) Filter based on proportion of bad entries. If either threshold is 1,
 % the resulting matrix is guaranteed to be free from bad values entirely.
@@ -140,19 +123,18 @@ fprintf(1,'There are %u special values in the data matrix.\n',sum(TS_Quality(:) 
 % Filter time series (rows)
 keepRows = filterNaNs(TS_DataMat,filterOptions(1),'time series');
 if any(~keepRows)
-    fprintf(1,'Time series removed: %s.\n\n',BF_cat({TimeSeries(~keepRows).Name},','));
+    fprintf(1,'Time series removed: %s.\n\n',BF_cat(TimeSeries.Name(~keepRows),','));
     TS_DataMat = TS_DataMat(keepRows,:);
     TS_Quality = TS_Quality(keepRows,:);
-    TimeSeries = TimeSeries(keepRows);
+    TimeSeries = TimeSeries(keepRows,:);
 end
 
 % Filter operations (columns)
 keepCols = filterNaNs(TS_DataMat',filterOptions(2),'operations');
 if any(~keepCols)
-    % fprintf(1,'Operations removed: %s.\n\n',BF_cat({Operations(~keepCols).Name},','));
     TS_DataMat = TS_DataMat(:,keepCols);
     TS_Quality = TS_Quality(:,keepCols);
-    Operations = Operations(keepCols);
+    Operations = Operations(keepCols,:);
 end
 
 % --------------------------------------------------------------------------
@@ -170,39 +152,23 @@ if size(TS_DataMat,1) > 1 % otherwise just a single time series remains and all 
                          sum(bad_op),length(bad_op),sum(~bad_op));
         TS_DataMat = TS_DataMat(:,~bad_op);
         TS_Quality = TS_Quality(:,~bad_op);
-        Operations = Operations(~bad_op);
+        Operations = Operations(~bad_op,:);
     else
         fprintf(1,'No operations had near-constant outputs on the dataset\n');
     end
 end
 
-% --------------------------------------------------------------------------
-%% Update the labels after filtering
-% --------------------------------------------------------------------------
-% At this point, you could check to see if any master operations are no longer
-% pointed to and recalibrate the indexing, but I'm not going to bother.
-
-if length(TimeSeries)==1
-    % When there is only a single time series, it doesn't actually make sense to normalize
-    error('Only a single time series remains in the dataset -- no normalization can be applied');
-end
-
-fprintf(1,'%u special-valued entries (%4.2f%%) in the %ux%u data matrix.\n',...
-            sum(isnan(TS_DataMat(:))), ...
-            sum(isnan(TS_DataMat(:)))/length(TS_DataMat(:))*100,...
-            size(TS_DataMat,1),size(TS_DataMat,2));
-
 %-------------------------------------------------------------------------------
 % Filter on class variance
 %-------------------------------------------------------------------------------
 if classVarFilter
-    if ~isfield(TimeSeries,'Group')
+    if ~ismember('Group',TimeSeries.Properties.VariableNames)
         fprintf(1,'Group labels not assigned to time series, so cannot filter on class variance\n');
     end
-    numClasses = length(unique([TimeSeries.Group]));
+    numClasses = length(unique(TimeSeries.Group));
     classVars = zeros(numClasses,size(TS_DataMat,2));
     for i = 1:numClasses
-        classVars(i,:) = nanstd(TS_DataMat([TimeSeries.Group]==i,:));
+        classVars(i,:) = nanstd(TS_DataMat(TimeSeries.Group==i,:));
     end
     zeroClassVar = any(classVars < 10*eps,1);
     if all(zeroClassVar)
@@ -213,9 +179,38 @@ if classVarFilter
                      sum(zeroClassVar),length(zeroClassVar),sum(~zeroClassVar));
         TS_DataMat = TS_DataMat(:,~zeroClassVar);
         TS_Quality = TS_Quality(:,~zeroClassVar);
-        Operations = Operations(~zeroClassVar);
+        Operations = Operations(~zeroClassVar,:);
     end
 end
+
+%-------------------------------------------------------------------------------
+%% Update the labels after filtering
+%-------------------------------------------------------------------------------
+% At this point, you could check to see if any master operations are no longer
+% pointed to and recalibrate the indexing, but I'm not going to bother.
+
+if height(TimeSeries)==1
+    % When there is only a single time series, it doesn't actually make sense to normalize
+    error('Only a single time series remains in the dataset -- normalization cannot be applied');
+end
+
+numBadEntries = sum(isnan(TS_DataMat(:)));
+percBadEntries = numBadEntries/length(TS_DataMat(:))*100;
+if numBadEntries==0
+    fprintf(1,'\n(post-filtering): No special-valued entries in the %ux%u data matrix!\n', ...
+                size(TS_DataMat,1),size(TS_DataMat,2));
+else
+    fprintf(1,'\n(post-filtering): %u special-valued entries (%4.2f%%) remain in the %ux%u data matrix.\n',...
+                numBadEntries,percBadEntries,size(TS_DataMat,1),size(TS_DataMat,2));
+
+    percGoodCols = mean(~isnan(TS_DataMat),1)*100;
+    percGoodRows = mean(~isnan(TS_DataMat),2)*100;
+    fprintf(1,'(post-filtering): Time series vary from %.2f--%.2f%% good values\n',...
+                                min(percGoodRows),max(percGoodRows));
+    fprintf(1,'(post-filtering): Features vary from %.2f--%.2f%% good values\n',...
+                                min(percGoodCols),max(percGoodCols));
+end
+fprintf(1,'\n');
 
 % --------------------------------------------------------------------------
 %% Filtering done, now apply the normalizing transformation
@@ -224,9 +219,8 @@ end
 if ismember(normFunction,{'nothing','none'})
     fprintf(1,'You specified ''%s'', so NO NORMALIZING IS ACTUALLY BEING DONE!!!\n',normFunction);
 else
-    % No training subset specified
     fprintf(1,'Normalizing a %u x %u object. Please be patient...\n',...
-                            length(TimeSeries),length(Operations));
+                            height(TimeSeries),height(Operations));
     TS_DataMat = BF_NormalizeMatrix(TS_DataMat,normFunction);
     fprintf(1,'Normalized! The data matrix contains %u special-valued elements.\n',sum(isnan(TS_DataMat(:))));
 end
@@ -244,7 +238,7 @@ if all(nanCol) % all columns are NaNs
 elseif any(nanCol) % there are columns that are all NaNs
     TS_DataMat = TS_DataMat(:,~nanCol);
     TS_Quality = TS_Quality(:,~nanCol);
-    Operations = Operations(~nanCol);
+    Operations = Operations(~nanCol,:);
     fprintf(1,'We just removed %u all-NaN columns introduced from %s normalization.\n',...
                         sum(nanCol),normFunction);
 end
@@ -257,14 +251,20 @@ kc = (nanstd(TS_DataMat) < 10*eps);
 if any(kc)
     TS_DataMat = TS_DataMat(:,~kc);
     TS_Quality = TS_Quality(:,~kc);
-    Operations = Operations(~kc);
+    Operations = Operations(~kc,:);
     fprintf(1,'%u operations had near-constant outputs after filtering: from %u to %u.\n', ...
                     sum(~kc),length(kc),sum(kc));
 end
 
-fprintf(1,'%u bad entries (%4.2f%%) in the %ux%u data matrix.\n', ...
-            sum(isnan(TS_DataMat(:))),sum(isnan(TS_DataMat(:)))/length(TS_DataMat(:))*100, ...
-            size(TS_DataMat,1),size(TS_DataMat,2));
+numBadEntries = sum(isnan(TS_DataMat(:)));
+percBadEntries = numBadEntries/length(TS_DataMat(:))*100;
+if numBadEntries==0
+    fprintf(1,'No special-valued entries in the %ux%u data matrix!\n', ...
+                size(TS_DataMat,1),size(TS_DataMat,2));
+else
+    fprintf(1,'%u special-valued entries (%4.2f%%) in the %ux%u data matrix.\n', ...
+                numBadEntries,percBadEntries,size(TS_DataMat,1),size(TS_DataMat,2));
+end
 
 % ------------------------------------------------------------------------------
 % Set default clustering details
@@ -277,7 +277,6 @@ op_clust = struct('distanceMetric','none','Dij',[],...
 % --------------------------------------------------------------------------
 %% Save results to file
 % --------------------------------------------------------------------------
-
 % Make a structure with statistics on normalization:
 % Save the codeToRun, so you can check the settings used to run the normalization
 % At the moment, only saves the first two arguments
@@ -305,14 +304,15 @@ function keepInd = filterNaNs(XMat,nan_thresh,objectName)
         propNaN = mean(isnan(XMat),2); % proportion of NaNs across rows
         keepInd = (1-propNaN >= nan_thresh);
         if all(~keepInd)
-            error('No %s had more than %4.2f%% good values.',objectName,nan_thresh*100)
+            error('No %s had more than %4.2f%% good values.\nSet a more lenient threshold.',...
+                                objectName,nan_thresh*100)
         end
         if all(keepInd)
             fprintf(1,['All %u %s have greater than %4.2f%% good values.' ...
                             ' Keeping them all.\n'], ...
                             length(keepInd),objectName,nan_thresh*100);
         else
-            fprintf(1,['\nRemoving %u %s with fewer than %4.2f%% good values:'...
+            fprintf(1,['Removing %u %s with fewer than %4.2f%% good values:'...
                         ' from %u to %u.\n'],sum(~keepInd),objectName,...
                         nan_thresh*100,length(keepInd),sum(keepInd));
         end

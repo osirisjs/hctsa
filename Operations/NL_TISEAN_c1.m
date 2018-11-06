@@ -37,13 +37,19 @@ function out = NL_TISEAN_c1(y, tau, mmm, tsep, Nref)
 % executed in the command line.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -64,17 +70,23 @@ function out = NL_TISEAN_c1(y, tau, mmm, tsep, Nref)
 % ------------------------------------------------------------------------------
 N = length(y); % time-series length (number of samples)
 
-% ++BF 12/5/2010 -- for some reason timeseries of length near a multiple of 256
+% Don't compute on short data
+if N < 100
+    warning('Time series too short for c1')
+    out = NaN; return
+end
+% ++BF 12/5/2010 -- for some reason timeseries of length near a multiple of 128
 % stalls the TISEAN routine c1... -- let's do a slight workaround by removing the
 % last (few) points in this case...
-freakyStat = mod(N,256);
+freakyStat = mod(N,128);
 if freakyStat <= 6
     fprintf(1,'You''re not going to believe this but TISEAN has a problem freezing with this length time series!\n');
     fprintf(1,'I''m ignoring the last %u points of this time series...\n',freakyStat+1);
     y = y(1:end-(freakyStat+1));
     N = length(y); % new time-series length
-elseif N == 65 || N==66 || N == 70
-    % Somehow length-70 vectors don't work
+end
+% Also freezes on constant data
+if length(unique(y))==1
     out = NaN; return
 end
 
@@ -90,13 +102,16 @@ if strcmp(tau,'ac')
 elseif strcmp(tau,'mi')
     tau = CO_FirstMin(y,'mi');
 end
+if isnan(tau)
+    error('Time series cannot be embedded (too short?)');
+end
 
 % Min/max embedding dimension, mmm
 if nargin < 3 || isempty(mmm)
-    mmm = [2, 10];
+    mmm = [2,10];
 end
 if length(mmm)~=2
-    error('Please set a minimum and maximum embedding dimension as a 2-vector');
+    error('Please set a minimum and maximum embedding dimension as a length-2 vector');
 end
 
 % Time separation, tsep
@@ -167,7 +182,9 @@ if isempty(res) || ~isempty(regexp(res,'command not found', 'once')) % nothing c
 end
 
 % fprintf(1,'TISEAN routine c2d on c1 output took %s\n',BF_thetime(toc(c2dtimer),1))
-if exist([filePath '.c1'],'file'), delete([filePath '.c1']); end % remove the TISEAN file write output
+if exist([filePath '.c1'],'file')
+    delete([filePath '.c1']);
+end % remove the TISEAN file write output
 
 % ------------------------------------------------------------------------------
 %% Get the output
@@ -320,11 +337,11 @@ out.longestscr = max(c1sc(:,6)); % (a log difference)
         end
 
     end
-% 
+%
 %     function [thevector, thematrix] = SUB_celltomat(thecell,thecolumn)
 %         % converts cell to matrix, where each (specified) column in cell
 %         % becomes a column in the new matrix
-% 
+%
 %         % But higher dimensions may not reach low enough length scales
 %         % rescale range to greatest common span
 %         nn = length(thecell);
@@ -339,12 +356,12 @@ out.longestscr = max(c1sc(:,6)); % (a log difference)
 %         end
 %         thevector = thecell{1}(:,1);
 %         ee = length(thevector);
-% 
+%
 %         thematrix = zeros(nn,ee); % across the rows for dimensions; across columns for lengths/epsilons
 %         for ii = 1:nn
 %             thematrix(ii,:) = thecell{ii}(:,thecolumn);
 %         end
-% 
+%
 %     end
 
     function results = findscalingr_ind(x)

@@ -1,8 +1,8 @@
 function out = SB_BinaryStretch(x,stretchWhat)
-% SB_BinaryStretch
+% SB_BinaryStretch Characterizes stretches of 0/1 in time-series binarization
 %
-% (DOESN'T ACTUALLY, see note) measure the longest stretch of consecutive zeros or ones in
-% a symbolized time series as a proportion of the time-series length.
+% (DOESN'T ACTUALLY, see note) measure the longest stretch of consecutive zeros
+% or ones in a symbolized time series as a proportion of the time-series length.
 %
 % The time series is symbolized to a binary string by whether it's above (1) or
 % below (0) its mean.
@@ -19,13 +19,19 @@ function out = SB_BinaryStretch(x,stretchWhat)
 % implementation error, but it's still kind of an interesting operation...!
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -51,10 +57,10 @@ x(x <= 0) = 0;
 
 switch stretchWhat
     case 'lseq1'
-        % longest stretch of 1s (this doesn't actually measure this!)
+        % longest stretch of 1s [this code doesn't actually measure this!]
         out = max(diff(BF_sgnchange(diff(find(x == 1))-1.5,1)))/N;
     case 'lseq0'
-        % longest stretch of 0s (this doesn't actualy measure this!)
+        % longest stretch of 0s [this code doesn't actualy measure this!]
         out = max(diff(BF_sgnchange(diff(find(x == 0))-1.5,1)))/N;
     otherwise
         error('Unknown input %s',stretchWhat)

@@ -25,13 +25,19 @@ function newFileName = TS_FilterData(whatData,ts_keepIDs,op_keepIDs,newFileName)
 % >> TS_FilterData('raw',IDs_Patient,[],'HCTSA_noPatient.mat');
 %
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -64,7 +70,7 @@ MasterOperations = TS_GetFromData(whatData,'MasterOperations');
 % First check that fromDatabase exists (for back-compatability):
 fromDatabase = TS_GetFromData(whatData,'fromDatabase');
 if isempty(fromDatabase)
-    fromDatabase = 1; % (legacy: set to 1 by default)
+    fromDatabase = true; % (set to true if doesn't exist; for legacy compatability)
 end
 % Check that we have the groupNames if already assigned labels:
 groupNames = TS_GetFromData(whatData,'groupNames');
@@ -82,7 +88,7 @@ end
 %-------------------------------------------------------------------------------
 if ~isempty(ts_keepIDs)
     % Match IDs to local indices:
-    keepRows = ismember([TimeSeries.ID],ts_keepIDs);
+    keepRows = ismember(TimeSeries.ID,ts_keepIDs);
     % A couple of basic checks first:
     if sum(keepRows)==0
         error('No time series to keep');
@@ -92,14 +98,14 @@ if ~isempty(ts_keepIDs)
     end
     fprintf(1,'Keeping %u/%u time series from the data in %s\n',...
                         sum(keepRows),length(keepRows),whatDataFile);
-    TimeSeries = TimeSeries(keepRows);
+    TimeSeries = TimeSeries(keepRows,:);
     TS_DataMat = TS_DataMat(keepRows,:);
     TS_Quality = TS_Quality(keepRows,:);
 end
 
 if ~isempty(op_keepIDs)
     % Match IDs to local indices:
-    keepCols = ismember([Operations.ID],op_keepIDs);
+    keepCols = ismember(Operations.ID,op_keepIDs);
     % A couple of basic checks first:
     if sum(keepCols)==0
         error('No operations to keep');
@@ -109,7 +115,7 @@ if ~isempty(op_keepIDs)
     end
     fprintf(1,'Keeping %u/%u operations from the data in %s\n',...
                         sum(keepCols),length(keepCols),whatDataFile);
-    Operations = Operations(keepCols);
+    Operations = Operations(keepCols,:);
     TS_DataMat = TS_DataMat(:,keepCols);
     TS_Quality = TS_Quality(:,keepCols);
 end

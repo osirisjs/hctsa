@@ -11,16 +11,22 @@ function [ff,xx] = BF_JitteredParallelScatter(dataCell,addMeans,doveTail,makeFig
 %
 %---EXAMPLE USAGE:
 % dataCell = {randn(1000,1),randn(500,1)*2+1};
-% BF_JitteredParallelScatter(dataCell,1,1,1);
+% BF_JitteredParallelScatter(dataCell,true,true,true);
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -37,19 +43,14 @@ function [ff,xx] = BF_JitteredParallelScatter(dataCell,addMeans,doveTail,makeFig
 % ------------------------------------------------------------------------------
 
 if nargin < 2
-    addMeans = 1;
-    % Add strip for mean of each group by default
+    addMeans = true; % Add strip for mean of each group
 end
-
 if nargin < 3
-    doveTail = 1;
-    % Add kernel distribution
+    doveTail = true; % Add kernel distribution
 end
-
 if nargin < 4
-    makeFigure = 1;
+    makeFigure = true; % Generate a new figure
 end
-
 if nargin < 5
     extraParams = struct;
 end
@@ -83,7 +84,7 @@ end
 
 % Custom colormap
 if ~isfield(extraParams,'theColors')
-    if numGroups<=3
+    if numGroups <= 3
         theColors = BF_getcmap('set1',numGroups,1);
     else
         theColors = BF_getcmap('spectral',numGroups,1);

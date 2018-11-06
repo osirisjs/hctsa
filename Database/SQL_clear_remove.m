@@ -27,13 +27,19 @@ function SQL_clear_remove(tsOrOps,idRange,doRemove,doLog)
 % Removes COMPLETELY the selected ts_ids or op_ids from the Database.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -236,7 +242,8 @@ else
     		fprintf(1,'Clearing Successful! I''ve just cleared %u x %u = %u entries from %s\n',length(idRange),numTs,numTs*length(idRange),dbName);
     	end
     else
-    	fprintf(1,'Error clearing results from %s... This is pretty bad news....\n%s',dbName,emsg); keyboard
+    	fprintf(1,'Error clearing results from %s... This is pretty bad news....\n%s',dbName,emsg);
+		keyboard
     end
 end
 

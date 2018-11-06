@@ -23,13 +23,19 @@ function TS_local_clear_remove(tsOrOps,idRange,doRemove,whatData)
 % >> TS_local_clear_remove('ts',1:5,1,'HCTSA.mat');
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -79,20 +85,20 @@ end
 %-------------------------------------------------------------------------------
 switch tsOrOps
 case 'ts'
-    dataStruct = TimeSeries;
+    dataTable = TimeSeries;
     theNameField = 'Name';
 case 'ops'
-    dataStruct = Operations;
+    dataTable = Operations;
     theNameField = 'Name';
 case 'mops'
 	loadedMore = load(whatDataFile,'MasterOperations');
     MasterOperations = loadedMore.MasterOperations;
-    dataStruct = MasterOperations;
+    dataTable = MasterOperations;
     theNameField = 'Label';
 otherwise
     error('Specify ''ts'' or ''ops'' or ''mops''');
 end
-IDs = [dataStruct.ID];
+IDs = dataTable.ID;
 doThese = ismember(IDs,idRange);
 
 if ~any(doThese)
@@ -102,7 +108,7 @@ end
 % ------------------------------------------------------------------------------
 %% Provide some user feedback
 % ------------------------------------------------------------------------------
-if (doRemove == 0) % clear data
+if ~doRemove % clear data
     doWhat = 'Clear data from';
 else
     doWhat = '*PERMENANTLY REMOVE*';
@@ -110,19 +116,17 @@ end
 
 iThese = find(doThese);
 for i = 1:sum(doThese)
-    fprintf(1,'%s [%u] %s\n',doWhat,IDs(iThese(i)),dataStruct(iThese(i)).(theNameField));
+    fprintf(1,'%s [%u] %s\n',doWhat,IDs(iThese(i)),dataTable.(theNameField){iThese(i)});
 end
 
-if doRemove == 0 % clear data
-    input(sprintf(['**Preparing to clear all calculated data for %u %s.\n' ...
-                        '[press any key to continue, ctrl-C to abort]'], ...
-                                    sum(doThese),theWhat),'s');
-elseif doRemove == 1
-    input(sprintf(['Preparing to REMOVE %u %s -- DRASTIC STUFF! ' ...
+if doRemove % clear data
+	input(sprintf(['Preparing to REMOVE %u %s -- DRASTIC STUFF! ' ...
             'I HOPE THIS IS OK?!\n[press any key to continue, ctrl-C to abort]'], ...
                                 sum(doThese),theWhat),'s');
 else
-    error('Specify either 0 (to clear data), or 1 (to remove)')
+    input(sprintf(['**Preparing to clear all calculated data for %u %s.\n' ...
+                        '[press any key to continue, ctrl-C to abort]'], ...
+                                    sum(doThese),theWhat),'s');
 end
 
 % ------------------------------------------------------------------------------
@@ -132,11 +136,11 @@ if doRemove
     % Need to actually remove metadata entries:
     switch tsOrOps
 	case 'ts'
-        TimeSeries(doThese) = [];
+        TimeSeries(doThese,:) = [];
     case 'ops'
-        Operations(doThese) = [];
+        Operations(doThese,:) = [];
 	case 'mops'
-		MasterOperations(doThese) = [];
+		MasterOperations(doThese,:) = [];
     end
 end
 

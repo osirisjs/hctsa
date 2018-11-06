@@ -1,5 +1,5 @@
 function out = PD_PeriodicityWang(y)
-% PD_PeriodicityWang    Periodicity extraction measure of Wang et al.
+% PD_PeriodicityWang    Periodicity extraction measure of Wang et al. (2007)
 %
 % Implements an idea based on the periodicity extraction measure proposed in:
 %
@@ -21,13 +21,19 @@ function out = PD_PeriodicityWang(y)
 % 10\sqrt{N}, where N is the length of the time series.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -46,10 +52,9 @@ function out = PD_PeriodicityWang(y)
 % ------------------------------------------------------------------------------
 %% Preliminaries:
 % ------------------------------------------------------------------------------
-doPlot = 0; % plot outputs to figure
+doPlot = false; % plot outputs to figure
 
-% Check that a Curve-Fitting Toolbox license is available:
-% (for the splines)
+% Check that a Curve-Fitting Toolbox license is available (for the splines):
 BF_CheckToolbox('curve_fitting_toolbox')
 
 % Check that the time series is z-scored:
@@ -61,12 +66,13 @@ end
 %% Foreplay
 % ------------------------------------------------------------------------------
 N = length(y); % length of the time series
-ths = [0, 0.01, 0.1, 0.2, 1/sqrt(N), 5/sqrt(N), 10/sqrt(N)]; % the thresholds with which to count a peak
-nths = length(ths); % the number of thresholds
+% The thresholds with which to count a peak:
+ths = [0,0.01,0.1,0.2,1/sqrt(N),5/sqrt(N),10/sqrt(N)];
+numThresholds = length(ths); % the number of thresholds
 
-% ------------------------------------------------------------------------------
-%% 1: Detrend using a regression spline with 3 knots
-% ------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% 1: Detrend using a regression spline with 3 knots
+%-------------------------------------------------------------------------------
 % I'm not quite sure how to do this, but I'm doing it like this:
 % y_or=y; % the original series
 % r=linspace(1,N,3);% range for spline (3 knots)
@@ -82,7 +88,9 @@ if doPlot
     plot(y_or,'k'); hold on; plot(y,'r'); hold off
 end
 
+%-------------------------------------------------------------------------------
 %% 2. Compute autocorrelations up to 1/3 the length of the time series.
+%-------------------------------------------------------------------------------
 acmax = ceil(N/3); % compute autocorrelations up to this lag
 acf = zeros(acmax,1); % the autocorrelation function
 for i = 1:acmax % i is the \tau, the AC lag
@@ -94,31 +102,33 @@ if doPlot
     title('Autocorrelation')
 end
 
-% ------------------------------------------------------------------------------
-%% 3. Frequency is the first peak satisfying the following conditions:
-% ------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% 3. Frequency is the first peak satisfying the following conditions:
+%-------------------------------------------------------------------------------
 % (a) a trough before it
 % (b) difference between peak and trough is at least 0.01
 % (c) peak corresponds to positive correlation
 
-% (i) find peaks and troughs in ACF
+% (i) Find peaks and troughs in ACF
 diffac = diff(acf); % differenced time series
 sgndiffac = sign(diffac); % sign of differenced time series
 bath = diff(sgndiffac); % differenced, signed, differenced time series
 troughs = find(bath == 2) + 1; % finds troughs
 peaks = find(bath == -2) + 1; % finds peaks
-npeaks = length(peaks);
+numPeaks = length(peaks);
 
-thefreqs = zeros(nths,1);
-for k = 1:nths
-    thefreqs(k) = 1;
-    for i = 1:npeaks % search through all peaks for one that meets the condition
+theFreqs = zeros(numThresholds,1);
+for k = 1:numThresholds
+    theFreqs(k) = 1;
+    for i = 1:numPeaks % search through all peaks for one that meets the condition
         ipeak = peaks(i); % acf lag at which there is a peak
         thepeak = acf(ipeak); % acf at the peak
         ftrough = find(troughs < ipeak,1,'last');
-        if isempty(ftrough); continue; end
+        if isempty(ftrough);
+            continue;
+        end
         itrough = troughs(ftrough); % acf lag at which there is a trough (the first one preceeding the peak)
-        thetrough = acf(itrough); % acf at the trough
+        theTrough = acf(itrough); % acf at the trough
 
         % (a) a trough before it: should be implicit in the ftrough bit above
         %     if troughs(1)>ipeak % the first trough is after it
@@ -126,7 +136,7 @@ for k = 1:nths
         %     end
 
         % (b) difference between peak and trough is at least 0.01
-        if thepeak - thetrough < ths(k)
+        if thepeak - theTrough < ths(k)
             continue
         end
 
@@ -135,17 +145,16 @@ for k = 1:nths
             continue
         end
 
-        % we made it! Use this frequency!
-        thefreqs(k) = ipeak; break
+        % We made it! Use this frequency!
+        theFreqs(k) = ipeak; break
     end
 end
 
-% ------------------------------------------------------------------------------
-%% Convert vector into a structure for output
-% ------------------------------------------------------------------------------
-% output entries are out.th1, out.th2, ..., out.th7:
-for i = 1:nths
-    out.(sprintf('th%u',i)) = thefreqs(i);
+%-------------------------------------------------------------------------------
+% Convert vector into a structure for output
+%-------------------------------------------------------------------------------
+for i = 1:numThresholds
+    out.(sprintf('th%u',i)) = theFreqs(i);
 end
 
 end

@@ -21,13 +21,19 @@ function out = FC_LocalSimple(y,forecastMeth,trainLength)
 % residuals, and their autocorrelation structure.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -60,54 +66,28 @@ N = length(y); % Time-series length
 % ------------------------------------------------------------------------------
 % Do the local prediction
 % ------------------------------------------------------------------------------
+if strcmp(trainLength,'ac')
+    lp = CO_FirstZero(y,'ac'); % make it tau
+else
+    lp = trainLength; % the length of the subsegment preceeding to use to predict the subsequent value
+end
+evalr = lp+1:N; % range over which to evaluate the forecast
+if length(evalr)==0
+    warning('Time series too short for forecasting');
+    out = NaN; return
+end
+res = zeros(length(evalr),1); % residuals
 
 switch forecastMeth
     case 'mean'
-        if strcmp(trainLength,'ac')
-            lp = CO_FirstZero(y,'ac'); % make it tau
-        else
-            lp = trainLength; % the length of the subsegment preceeding to use to predict the subsequent value
-        end
-        evalr = lp+1:N; % range over which to evaluate the forecast
-        res = zeros(length(evalr),1); % residuals
         for i = 1:length(evalr)
             res(i) = mean(y(evalr(i)-lp:evalr(i)-1)) - y(evalr(i)); % prediction-value
         end
-
     case 'median'
-        if strcmp(trainLength,'ac')
-            lp = CO_FirstZero(y,'ac'); % make it tau
-        else
-            lp = trainLength; % the length of the subsegment preceeding to use to predict the subsequent value
-        end
-        evalr = lp+1:N; % range over which to evaluate the forecast
-        res = zeros(length(evalr),1); % residuals
         for i = 1:length(evalr)
             res(i) = median(y(evalr(i)-lp:evalr(i)-1)) - y(evalr(i)); % prediction-value
         end
-
-%     case 'acf' % autocorrelation function
-%         acl=trainLength; % autocorrelation 'length'
-%         acc=zeros(acl,1); % autocorrelation coefficients
-%         for i=1:acl, acc(i)=CO_AutoCorr(y,i); end
-%         % normalize to a sum of 1 (so that operating on three mean values
-%         % of the time series, also returns the mean value as output)
-%         acc=acc/sum(acc);
-%
-%         evalr=acl+1:N; % range over which to evaluate the forecast
-%         res=zeros(length(evalr),1); % residuals
-%         for i=1:length(evalr)
-%             res(i)=sum(acc.*(y(evalr(i)-acl:evalr(i)-1))) - y(evalr(i)); % prediction-value
-%         end
-
     case 'lfit'
-        if strcmp(trainLength,'ac')
-            lp = CO_FirstZero(y,'ac'); % make it tau
-        else
-            lp = trainLength; % the length of the subsegment preceeding to use to predict the subsequent value
-        end
-        evalr = lp+1:N; % range over which to evaluate the forecast
-        res = zeros(length(evalr),1); % residuals
         for i = 1:length(evalr)
             % Fit linear
             warning('off','MATLAB:polyfit:PolyNotUnique'); % Disable (potentially important ;)) warning
@@ -115,31 +95,29 @@ switch forecastMeth
             warning('on','MATLAB:polyfit:PolyNotUnique'); % Re-enable warning
             res(i) = polyval(p,lp+1) - y(evalr(i)); % prediction - value
         end
-
     otherwise
         error('Unknown forecasting method ''%s''',forecastMeth);
 end
 
 % out=res;
 % plot(res);
-% measures on the errors time series:
 
 % ------------------------------------------------------------------------------
-% Output statistics
+% Output statistics on the residuals
 % ------------------------------------------------------------------------------
 
-% Mean error:
+% Mean residual (mean error/bias):
 out.meanerr = mean(res);
 
-% Spread of errors:
+% Spread of residuals:
 out.stderr = std(res);
 out.meanabserr = mean(abs(res));
 
-% Stationarity:
+% Stationarity of residuals:
 out.sws = SY_SlidingWindow(res,'std','std',5,1);
 out.swm = SY_SlidingWindow(res,'mean','std',5,1);
 
-% Normality:
+% Normality of residuals:
 tmp = DN_SimpleFit(res,'gauss1',0);
 if ~isstruct(tmp) && isnan(tmp) % fitting failed
     out.gofr2 = NaN;
@@ -147,7 +125,7 @@ else
     out.gofr2 = tmp.r2; % rsqured
 end
 
-% Autocorrelation structure:
+% Autocorrelation structure of the residuals:
 out.ac1 = CO_AutoCorr(res,1,'Fourier');
 out.ac2 = CO_AutoCorr(res,2,'Fourier');
 out.taures = CO_FirstZero(res,'ac');

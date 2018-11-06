@@ -1,4 +1,4 @@
-function out = SP_Summaries(y,psdmeth,wmeth,nf,dologabs)
+function out = SP_Summaries(y,psdMeth,windowType,nf,dologabs)
 % SP_Summaries  Statistics of the power spectrum of a time series
 %
 % The estimation can be done using a periodogram, using the periodogram code in
@@ -8,12 +8,14 @@ function out = SP_Summaries(y,psdmeth,wmeth,nf,dologabs)
 %---INPUTS:
 % y, the input time series
 %
-% psdmeth, the method of obtaining the spectrum from the signal:
+% psdMeth, the method of obtaining the spectrum from the signal:
 %               (i) 'periodogram': periodogram
 %               (ii) 'fft': fast fourier transform
+%               (iii) 'welch': Welch's method
 %
-% wmeth, the window to use:
+% windowType, the window to use:
 %               (i) 'boxcar'
+%               (ii) 'rect'
 %               (iii) 'bartlett'
 %               (iv) 'hann'
 %               (v) 'hamming'
@@ -36,13 +38,19 @@ function out = SP_Summaries(y,psdmeth,wmeth,nf,dologabs)
 % crossings of the spectrum at various amplitude thresholds.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -66,20 +74,20 @@ BF_CheckToolbox('curve_fitting_toolbox')
 % ------------------------------------------------------------------------------
 % Check inputs, set defaults:
 % ------------------------------------------------------------------------------
-if size(y,2) > size(y,1);
+if size(y,2) > size(y,1)
     y = y'; % Time series must be a column vector
 end
-if nargin < 2 || isempty(psdmeth)
-    psdmeth = 'fft'; % fft by default
+if nargin < 2 || isempty(psdMeth)
+    psdMeth = 'fft'; % fft by default
 end
-if nargin < 3 || isempty(wmeth)
-    wmeth = 'hamming'; % Hamming window by default
+if nargin < 3 || isempty(windowType)
+    windowType = 'hamming'; % Hamming window by default
 end
 if nargin < 4
     nf = [];
 end
 if nargin < 5 || isempty(dologabs)
-    dologabs = 0;
+    dologabs = false;
 end
 
 if dologabs % a boolean
@@ -87,14 +95,14 @@ if dologabs % a boolean
     y = log(abs(y));
 end
 
-doPlot = 0; % plot outputs
+doPlot = false; % plot outputs
 Ny = length(y); % time-series length
 
 %-------------------------------------------------------------------------------
 % Set window (for periodogram and welch):
 %-------------------------------------------------------------------------------
-if ismember(psdmeth,{'periodogram','welch'})
-    switch wmeth % method to use for the window
+if ismember(psdMeth,{'periodogram','welch'})
+    switch windowType % method to use for the window
         case 'none'
             window = [];
         case 'hamming'
@@ -109,14 +117,14 @@ if ismember(psdmeth,{'periodogram','welch'})
             window = rectwin(Ny);
         otherwise
             % There are other options, but these aren't implemented here
-            error('Unknown window ''%s''',wmeth);
+            error('Unknown window, ''%s''',windowType);
     end
 end
 
 % ------------------------------------------------------------------------------
 % Compute the Fourier Transform
 % ------------------------------------------------------------------------------
-switch psdmeth
+switch psdMeth
     case 'periodogram'
         if isempty(nf)
             % (2) Estimate the spectrum
@@ -145,12 +153,12 @@ switch psdmeth
         S = S/(2*pi); % adjust so that area remains normalized in angular frequency space
 
     otherwise
-        error('Unknown spectral estimation method ''%s''',psdmeth);
+        error('Unknown spectral estimation method ''%s''',psdMeth);
 end
 
 if ~any(isfinite(S)) % no finite values in the power spectrum
     % This time series must be really weird -- return NaN (unsuitable operation)...
-    fprintf(1,'NaN in power spectrum? A weird time series.\n');
+    warning('NaN in power spectrum? A weird time series.');
     out = NaN; return
 end
 
@@ -185,7 +193,7 @@ dw = w(2) - w(1); % spacing increment in w
 out.maxw = w(i_maxS);
 out.maxWidth = w(i_maxS + find(S(i_maxS+1:end) < out.maxS,1,'first')) - ...
                     w(find(S(1:i_maxS-1) < out.maxS,1,'last'));
-if isempty(out.maxWidth);
+if isempty(out.maxWidth)
     out.maxWidth = 0;
 end
 
@@ -244,7 +252,7 @@ for i = 3:5
     out.(sprintf('mom%u',i)) = DN_Moments(S,i);
 end
 
-% Autocorr:
+% Autocorrelation of amplitude spectrum:
 autoCorrs_S = CO_AutoCorr(S,1:4,'Fourier');
 out.ac1 = autoCorrs_S(1);
 out.ac2 = autoCorrs_S(2);
@@ -432,8 +440,10 @@ function out = giveMeRobustStats(xData,yData,textID,out)
     % Add the statistics to the output structure:
     out.(sprintf('%s_a1',textID)) = a(1); % robust intercept
     out.(sprintf('%s_a2',textID)) = a(2); % robust gradient
-    out.(sprintf('%s_sigrat',textID)) = stats.ols_s/stats.robust_s; % ratio of sigma estimates
-    out.(sprintf('%s_sigma',textID)) = stats.s; % esimate on sigma
+    % ratio of sigma estimates between ordinary least squares (ols) and the robust fit:
+    out.(sprintf('%s_sigrat',textID)) = stats.ols_s/stats.robust_s;
+    % esimate of sigma as the larger of robust_s and a weighted average of ols_s and robust_s:
+    out.(sprintf('%s_sigma',textID)) = stats.s;
     out.(sprintf('%s_sea1',textID)) = stats.se(1); % standard error of 1st coefficient estimate
     out.(sprintf('%s_sea2',textID)) = stats.se(2); % standard error of 2nd coefficient estimate
 end

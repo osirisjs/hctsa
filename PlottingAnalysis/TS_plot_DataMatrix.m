@@ -21,13 +21,19 @@ function TS_plot_DataMatrix(varargin)
 %   operations as columns.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -47,8 +53,8 @@ check_whatData = @(x) ischar(x) || isstruct(x);
 addOptional(inputP,'whatData',default_whatData,check_whatData);
 
 % addTimeSeries, annotates time series segments to the side of the plot
-default_addTimeSeries = 1;
-check_addTimeSeries = @(x) isnumeric(x) && (x==0 || x==1);
+default_addTimeSeries = true;
+check_addTimeSeries = @(x) (isnumeric(x) || islogical(x)) && (x==0 || x==1);
 addOptional(inputP,'addTimeSeries',default_addTimeSeries,check_addTimeSeries);
 
 % timeSeriesLength, length of time-series annotations to the left of the main plot
@@ -56,12 +62,12 @@ default_timeSeriesLength = 100;
 addOptional(inputP,'timeSeriesLength',default_timeSeriesLength,@isnumeric);
 
 % colorGroups, color groups of time series differently:
-default_colorGroups = 0;
+default_colorGroups = false;
 check_colorGroups = @(x) (x==0 || x==1);
 addOptional(inputP,'colorGroups',default_colorGroups,check_colorGroups);
 
 % groupReorder, reorder within groups of time series:
-default_groupReorder = 0;
+default_groupReorder = false;
 check_groupReorder = @(x) (x==0 || x==1);
 addOptional(inputP,'groupReorder',default_groupReorder,check_groupReorder);
 
@@ -97,10 +103,9 @@ clear inputP;
 %% Read in the data
 % --------------------------------------------------------------------------
 % You always want to retrieve and plot the clustered data if it exists
-getClustered = 1
+getClustered = true;
 [TS_DataMat,TimeSeries,Operations] = TS_LoadData(whatData,getClustered);
-
-[numTS, numOps] = size(TS_DataMat); % size of the data matrix
+[numTS,numOps] = size(TS_DataMat); % size of the data matrix
 
 % ------------------------------------------------------------------------------
 %% Reorder according to customOrder
@@ -108,30 +113,29 @@ getClustered = 1
 if ~isempty(customOrder{1}) % reorder rows
 	fprintf(1,'Reordering time series according to custom order specified.\n');
 	TS_DataMat = TS_DataMat(customOrder{1},:);
-    TimeSeries = TimeSeries(customOrder{1});
+    TimeSeries = TimeSeries(customOrder{1},:);
 end
-
 if ~isempty(customOrder{2}) % reorder columns
 	fprintf(1,'Reordering operations according to custom order specified.\n');
 	TS_DataMat = TS_DataMat(:,customOrder{2});
-    Operations = Operations(customOrder{2});
+    Operations = Operations(customOrder{2},:);
 end
 
 %-------------------------------------------------------------------------------
 % Check group information
 %-------------------------------------------------------------------------------
-if isfield(TimeSeries,'Group')
-	timeSeriesGroups = [TimeSeries.Group];
+if ismember('Group',TimeSeries.Properties.VariableNames)
+	timeSeriesGroups = TimeSeries.Group;
 	numClasses = max(timeSeriesGroups);
 else
 	timeSeriesGroups = [];
 end
-if colorGroups==1
+if colorGroups
 	if ~isempty(timeSeriesGroups)
 	    fprintf(1,'Coloring groups of time series...\n');
 	else
 	    warning('No group information found')
-	    colorGroups = 0;
+	    colorGroups = false;
 	end
 end
 
@@ -146,15 +150,15 @@ if groupReorder
 	    dataMatReOrd = TS_DataMat(ixData,:);
 	    ixAgain = ixData;
 	    for i = 1:numClasses
-	        isGroup = [TimeSeries(ixData).Group]==i;
+	        isGroup = TimeSeries.Group(ixData)==i;
 	        ordering = BF_ClusterReorder(dataMatReOrd(isGroup,:),'euclidean','average');
 	        istmp = ixData(isGroup);
 	        ixAgain(isGroup) = istmp(ordering);
 	    end
 	    ixData = ixAgain; % set ordering to ordering within groups
-	    TimeSeries = TimeSeries(ixData);
+	    TimeSeries = TimeSeries(ixData,:);
 	    TS_DataMat = TS_DataMat(ixData,:);
-	    timeSeriesGroups = timeSeriesGroups(ixData);
+	    timeSeriesGroups = TimeSeries.Group;
 	end
 end
 
@@ -202,7 +206,7 @@ if numGroups <= 1
     else
         customColorMap = gray(numColorMapGrads);
     end
-elseif numGroups ==2
+elseif numGroups == 2
 	% Special case to make a nice red and blue one
 	customColorMap = [flipud(BF_getcmap('blues',9,0));flipud(BF_getcmap('reds',9,0))];
 else
@@ -226,19 +230,23 @@ if addTimeSeries
     hold(ax1,'on');
     ax1.Box = 'on';
     ax1.YTick = (1:numTS);
-    ax1.YTickLabel = {TimeSeries.Name};
+    ax1.YTickLabel = TimeSeries.Name;
     ax1.YLim = [0.5,numTS+0.5];
+	allLengths = cellfun(@length,TimeSeries.Data);
+	if timeSeriesLength > max(allLengths)
+		timeSeriesLength = max(allLengths);
+	end
     ax1.XLim = [1,timeSeriesLength];
     xlabel('Time (samples)');
     ax1.TickLabelInterpreter = 'none';
-    NormMinMax = @(x) (x-min(x))/(max(x)-min(x));
+    f_NormMinMax = @(x) (x-min(x))/(max(x)-min(x));
     for j = 1:numTS
         % Plot a segment from each time series, up to a maximum length of
         % timeSeriesLength samples (which is set as an input to the function)
-        tsData = TimeSeries(j).Data;
+        tsData = TimeSeries.Data{j};
         lengthHere = min(timeSeriesLength,length(tsData));
         tsData = tsData(1:lengthHere);
-        plot(1:lengthHere,j-0.5+NormMinMax(tsData),'-k');
+        plot(1:lengthHere,j-0.5+f_NormMinMax(tsData),'-k');
         if j < numTS
             plot([1,timeSeriesLength],(j+0.5)*ones(2,1),':k')
         end
@@ -254,8 +262,6 @@ end
 % ------------------------------------------------------------------------------
 %% Plot the data matrix
 % ------------------------------------------------------------------------------
-% Surround by zeros for an accurate and inclusive pcolor:
-% (alternative is to use imagesc)
 colormap(customColorMap)
 imagesc(TS_DataMat);
 
@@ -278,7 +284,7 @@ end
 % Axis labels:
 ax2 = gca;
 ax2.FontSize = 8; % small font size (often large datasets)
-ax2.TickLabelInterpreter = 'none'; % Stop from displaying underscores as subscripts
+ax2.TickLabelInterpreter = 'none'; % prevent displaying underscores as subscripts
 
 % Rows: time series
 ax2.YTick = 1:numTS;
@@ -289,7 +295,7 @@ xlabel('Operations')
 ax2.XLim = [0.5,numOps+0.5];
 if numOps < 1000 % if too many operations, it's too much to list them all...
     ax2.XTick = 1:numOps;
-    ax2.XTickLabel = {Operations.Name};
+    ax2.XTickLabel = Operations.Name;
     ax2.XTickLabelRotation = 90;
 end
 
@@ -299,6 +305,7 @@ cB.Label.String = 'Output';
 if numGroups > 0
 	cB.Ticks = 0.5:1:numGroups;
 	cB.TickLabels = TS_GetFromData(whatData,'groupNames');
+	cB.TickLabelInterpreter = 'none';
 end
 
 title(sprintf('Data matrix (%u x %u)',numTS,numOps))
@@ -316,7 +323,7 @@ if addTimeSeries
 else
     % Rows -- time series need labels
     ylabel('Time series')
-    ax2.YTickLabel = {TimeSeries.Name};
+    ax2.YTickLabel = TimeSeries.Name;
 end
 
 end

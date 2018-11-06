@@ -16,19 +16,25 @@ function TS_init(INP_ts,INP_mops,INP_ops,beVocal,outputFile)
 % beVocal: Whether to display details of the progress of the script to screen.
 %           a 3-vector, specifying for 1. time series, 2. master operations,
 %           and 3. operations.
-% outputFile: Specify an alternative output filename
+% outputFile: Specify an output filename
 %
 %---OUTPUTS:
 % Writes output into HCTSA.mat (or specified custom filename)
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -51,15 +57,15 @@ if nargin < 3 || isempty(INP_ops)
 end
 if nargin < 4
     if nargin < 2
-        beVocal = [1,0,0]; % by default helps you just for the time series input file you provided
+        beVocal = [true,false,false]; % by default helps you just for the time series input file you provided
     elseif nargin < 3
-        beVocal = [1,1,0]; % by help you through the master operations too
+        beVocal = [true,true,false]; % by help you through the master operations too
     else
-        beVocal = [1,1,1]; % Provided all custom input files--walks you through all of them
+        beVocal = [true,true,true]; % Provided all custom input files--walks you through all of them
     end
 end
 if length(beVocal)==1
-    beVocal = ones(3,1)*beVocal;
+    beVocal = true(3,1)*beVocal;
 end
 if nargin < 5
     outputFile = 'HCTSA.mat';
@@ -76,40 +82,52 @@ if exist(['./',outputFile],'file')
     end
 end
 
+%-------------------------------------------------------------------------------
+% First check that all input files provided exist:
+%-------------------------------------------------------------------------------
+checkFiles = {INP_ts,INP_mops,INP_ops};
+for i = 1:3
+    if ~exist(checkFiles{i},'file')
+        error('Unknown file: ''%s''',checkFiles{i});
+    end
+end
+
 % ------------------------------------------------------------------------------
 % Get time series, operations, master operations into structure arrays
 % ------------------------------------------------------------------------------
-isEmptyStruct = @(x) length(fieldnames(x))==0;
+TimeSeries = SQL_add('ts',INP_ts,false,beVocal(1));
+numTS = height(TimeSeries);
+if numTS==0
+    return; % The user did not approve of the set of inputs
+end
 
-TimeSeries = SQL_add('ts', INP_ts, 0, beVocal(1));
-if isEmptyStruct(TimeSeries), return; end % The user did not approve of the set of inputs
-numTS = length(TimeSeries);
+MasterOperations = SQL_add('mops',INP_mops,false,beVocal(2));
+numMops = height(MasterOperations);
+if numMops==0
+    return; % The user did not approve of the set of inputs
+end
 
-MasterOperations = SQL_add('mops', INP_mops, 0, beVocal(2))';
-if isEmptyStruct(MasterOperations), return; end % The user did not approve of the set of inputs
-numMops = length(MasterOperations);
-
-Operations = SQL_add('ops', INP_ops, 0, beVocal(3));
-if isEmptyStruct(Operations), return; end % The user did not approve of the set of inputs
-numOps = length(Operations);
+Operations = SQL_add('ops',INP_ops,false,beVocal(3));
+numOps = height(Operations);
+if numOps==0
+    return; % The user did not approve of the set of inputs
+end
 
 %-------------------------------------------------------------------------------
 % Link operations to their masters using label matching
 % and update the structure arrays using the TS_LinkOperationsWithMasters function
 %-------------------------------------------------------------------------------
-
-[Operations, MasterOperations] = TS_LinkOperationsWithMasters(Operations,MasterOperations);
-
+[Operations,MasterOperations] = TS_LinkOperationsWithMasters(Operations,MasterOperations);
 % MasterOperations may have been trimmed by TS_LinkOperationsWithMasters:
-numMops = length(MasterOperations);
+numMops = height(MasterOperations);
 
 % ------------------------------------------------------------------------------
 % Generate the TS_DataMat, TS_Quality, and TS_CalcTime matrices
 % ------------------------------------------------------------------------------
 % All NaNs -> NULL (haven't yet been calculated)
-TS_DataMat = ones(numTS,numOps)*NaN;
-TS_Quality = ones(numTS,numOps)*NaN;
-TS_CalcTime = ones(numTS,numOps)*NaN;
+TS_DataMat = nan(numTS,numOps);
+TS_Quality = nan(numTS,numOps);
+TS_CalcTime = nan(numTS,numOps);
 
 %-------------------------------------------------------------------------------
 % Get git information to keep track of the version of code used at the time of TS_init
@@ -121,9 +139,9 @@ gitInfo = TS_AddGitInfo();
 % ------------------------------------------------------------------------------
 % Set a flag, fromDatabase, that tells you that you that this was generated by
 % TS_init and shouldn't be written back to a database
-fromDatabase = 0;
+fromDatabase = false;
 save(outputFile,'TimeSeries','Operations','MasterOperations',...
-            'TS_DataMat','TS_Quality','TS_CalcTime','fromDatabase','gitInfo','-v7.3');
+            'TS_DataMat','TS_Quality','TS_CalcTime','fromDatabase','gitInfo');
 
 fprintf(1,'Successfully initialized %s with %u time series, %u master operations, and %u operations\n',...
                         outputFile,numTS,numMops,numOps);

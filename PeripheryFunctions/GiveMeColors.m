@@ -5,13 +5,19 @@ function colorCell = GiveMeColors(numColors)
 % colormaps
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -30,21 +36,21 @@ function colorCell = GiveMeColors(numColors)
 if numColors == 1
     colorCell = {[0,0,0]}; % Just use black...
 elseif numColors==4
-    colorCell = BF_getcmap('set2',numColors,1); % set1, accent, set2
+    colorCell = BF_getcmap('set2',numColors,true); % set1, accent, set2
 elseif numColors <= 5
     % colorCell = BF_getcmap('set1',5,1);
-    colorCell = BF_getcmap('set1',numColors,1); % set1, accent, set2
+    colorCell = BF_getcmap('set1',numColors,true); % set1, accent, set2
     % colorCell = BF_getcmap('set2',5,1);
     % if numColors==2, colorCell = colorCell([2,4]); end
 elseif numColors < 10
-    colorCell = BF_getcmap('dark2',numColors,1);
+    colorCell = BF_getcmap('dark2',numColors,true);
 elseif numColors <= 12
-    colorCell = BF_getcmap('set3',numColors,1);
+    colorCell = BF_getcmap('set3',numColors,true);
 elseif numColors <= 22
-    colorCell = [BF_getcmap('set1',numColors,1); ...
-                BF_getcmap('set3',numColors,1)];
+    colorCell = [BF_getcmap('set1',numColors,true);...
+                 BF_getcmap('set3',numColors,true)];
 elseif numColors <= 50
-    colorCell = mat2cell(jet(numColors));
+    colorCell = num2cell(jet(numColors),2);
 else
     error('There aren''t enough colors in the rainbow to plot this many groups!')
 end

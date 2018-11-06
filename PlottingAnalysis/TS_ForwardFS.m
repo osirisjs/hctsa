@@ -34,13 +34,19 @@ function [ifeat, testStat, trainErr, testErr, testClass] = TS_ForwardFS(whatData
 % testClass: classification of the test data.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2010). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -91,7 +97,7 @@ numClasses = length(groupNames);
 %% Set up the classification function
 % ------------------------------------------------------------------------------
 % We get (*) Classify_fn (takes test labels as input): gives the mean classification rate across partitions
-classNumbers = arrayfun(@(x)sum([TimeSeries.Group]==x),1:numClasses);
+classNumbers = arrayfun(@(x)sum(TimeSeries.Group==x),1:numClasses);
 isBalanced = all(classNumbers==classNumbers(1));
 if isBalanced
     whatLoss = 'sumLoss';
@@ -112,12 +118,11 @@ classify_fn = GiveMeFunctionHandle(criterion,numClasses,whatLoss,reWeight);
 % ------------------------------------------------------------------------------
 % ------------------------------------------------------------------------------
 FS_timer = tic;
-fprintf(1,['Performing greedy forward feature selection ' ...
-                        'using ''%s''...\n'],criterion);
+fprintf(1,['Performing greedy forward feature selection using ''%s''...\n'],criterion);
 
 opts = statset('display','iter');
 % classify_fn = @(XTrain,yTrain,XTest,yTest) 1 - GiveMeCfn(criterion,XTrain,yTrain,XTest,yTest,numClasses);
-[fs,history] = sequentialfs(classify_fn,TS_DataMat,[TimeSeries.Group]',...
+[fs,history] = sequentialfs(classify_fn,TS_DataMat,TimeSeries.Group,...
                     'cv',cvFolds,'options',opts,'nfeatures',numFeatSelect);
 fprintf(1,'Selected %u features\n',sum(fs));
 
@@ -133,7 +138,7 @@ clear FS_timer;
 featureLabels = cell(2,1);
 ifeat = find(history.In(2,:));
 for i = 1:2
-    featureLabels{i} = sprintf('%s (%.2f%%)',Operations(ifeat(i)).Name,100-history.Crit(i)*100);
+    featureLabels{i} = sprintf('%s (%.2f%%)',Operations.Name{ifeat(i)},100-history.Crit(i)*100);
 end
 
 if sum(fs) > 1

@@ -21,13 +21,19 @@ function hadProblem = TS_InspectQuality(inspectWhat,customFile)
 %             strings like 'raw' or 'norm' (cf. TS_LoadData)
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -89,8 +95,8 @@ case {'full','all'}
     imagesc(TS_Quality)
 
     xlabel('Operations (op_id)','interpreter','none')
-    ax.XTick = 1:length(Operations);
-    ax.XTickLabel = [Operations.ID];
+    ax.XTick = 1:height(Operations);
+    ax.XTickLabel = Operations.ID;
     ax.XTickLabelRotation = 90;
 
     formatYAxisColorBar;
@@ -119,7 +125,7 @@ case 'reduced'
     imagesc(TS_Quality(:,hadProblem));
 
     ax.XTick = 1:sum(hadProblem);
-    ax.XTickLabel = [Operations(hadProblem).ID];
+    ax.XTickLabel = Operations.ID(hadProblem);
     ax.XTickLabelRotation = 90;
 
     title(sprintf('Displaying %u x %u (displaying %u/%u operations with some special values',...
@@ -132,11 +138,11 @@ case 'master'
     % Summarize at the level of master operations
     % Each row is now a different quality label
 
-    numMasters = length(MasterOperations);
-    opMIDs = [Operations.MasterID]; % save time by getting this first
+    numMasters = height(MasterOperations);
+    opMIDs = Operations.MasterID; % save time by getting this first
     qualities = zeros(7,numMasters);
     for k = 1:numMasters
-        masterID = [MasterOperations(k).ID];
+        masterID = MasterOperations.ID(k);
         pointInd = (opMIDs==masterID); % indices of operations using this master function
         qualityLabels = TS_Quality(:,pointInd);
         qualityLabels = qualityLabels(qualityLabels > 0); % only want to look at special ones
@@ -155,10 +161,10 @@ case 'master'
     % ------------
     % Text output:
     % ------------
-    problemMops = MasterOperations(hadProblem);
+    problemMops = MasterOperations(hadProblem,:);
     for i = 1:length(problemMops)
-        fprintf('[%u] %s -- %s\n', problemMops(i).ID, ...
-                problemMops(i).Label, problemMops(i).Code);
+        fprintf('[%u] %s -- %s\n',problemMops.ID(i), ...
+                problemMops.Label{i},problemMops.Code{i});
     end
 
     % ------------
@@ -176,7 +182,7 @@ case 'master'
     ax.YTickLabel = qLabels;
 
     ax.XTick = 1:sum(hadProblem);
-    ax.XTickLabel = {MasterOperations(hadProblem).Code};
+    ax.XTickLabel = MasterOperations.Code(hadProblem);
     ax.XTickLabelRotation = 90;
 
     % Get rid of tex interpreter format (for strings with underscores)
@@ -219,11 +225,11 @@ case 'summary'
     % ------------
     % Text output:
     % ------------
-    problemOps = Operations(hadProblem);
+    problemOps = Operations(hadProblem,:);
     for i = 1:length(problemOps)
         ind = ix(i);
-        fprintf('[%u] %s (%s) -- %.1f%% special values.\n', problemOps(ind).ID, problemOps(ind).Name, ...
-                problemOps(ind).CodeString, 100*(1 - propGood(ind)));
+        fprintf('[%u] %s (%s) -- %.1f%% special values.\n',problemOps.ID(ind),problemOps.Name{ind},...
+                problemOps.CodeString{ind},100*(1 - propGood(ind)));
     end
 
     % ------------
@@ -236,7 +242,7 @@ case 'summary'
     bar(whatLabel','stacked');
 
     ax.XTick = 1:sum(hadProblem);
-    unSortedTicks = [Operations(hadProblem).ID];
+    unSortedTicks = Operations.ID(hadProblem);
     ax.XTickLabel = unSortedTicks(ix);
     ax.XTickLabelRotation = 90;
 
@@ -271,9 +277,9 @@ function formatYAxisColorBar(doYaxis,offSet)
 
     if doYaxis
         % Format the y axis
-        ax.YTick = 1:length(TimeSeries);
+        ax.YTick = 1:height(TimeSeries);
         ylabel('Time series')
-        ax.YTickLabel = {TimeSeries.Name};
+        ax.YTickLabel = TimeSeries.Name;
     end
 
     % Get rid of tex interpreter format (for strings with underscores)

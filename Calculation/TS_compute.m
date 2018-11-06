@@ -5,7 +5,7 @@ function TS_compute(doParallel,ts_id_range,op_id_range,computeWhat,customFile,be
 % TS_compute;
 %
 %---INPUTS:
-% doParallel:  if 1, attempts to use the Parallel Computing Toolbox to run
+% doParallel:  if true, attempts to use the Parallel Computing Toolbox to run
 %               computations in parallel over multiple cores.
 % ts_id_range: a custom range of time series IDs to compute (default: [] -- compute all)
 % op_id_range: a custom range of operation IDs to compute (default: [] -- compute all)
@@ -13,20 +13,26 @@ function TS_compute(doParallel,ts_id_range,op_id_range,computeWhat,customFile,be
 % 				ALSO retry results that previously threw an error ('error'), or
 % 				ALSO retry any result that previously did not return a good value ('bad')
 % customFile: reads in and writes to a custom output file
-% beVocal:     if 1, gives additional user feedback about the calculation of
+% beVocal:     if true, gives additional user feedback about the calculation of
 %               each individual operation.
 %
 %---OUTPUTS:
 % Writes output to customFile (HCTSA.mat by default)
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -41,7 +47,7 @@ function TS_compute(doParallel,ts_id_range,op_id_range,computeWhat,customFile,be
 
 % Use Matlab's Parallel Computing toolbox?
 if nargin < 1
-	doParallel = 0;
+	doParallel = false;
 end
 
 % Custom range of ts_ids to compute
@@ -68,7 +74,7 @@ end
 
 % Be vocal?
 if nargin < 6
-    beVocal = 1; % Write back lots of information to screen
+    beVocal = true; % Write back lots of information to screen
     % prints every piece of code evaluated (nice for error checking)
 end
 
@@ -92,19 +98,18 @@ end
 % ------------------------------------------------------------------------------
 % Get indices if computing a subset
 % ------------------------------------------------------------------------------
-allIDs = [TimeSeries.ID];
+allIDs = TimeSeries.ID;
 if isempty(ts_id_range)
     ts_id_range = allIDs;
-    tsIndex = 1:length(TimeSeries);
+    tsIndex = 1:height(TimeSeries);
 else
     ts_id_range = intersect(ts_id_range,allIDs);
     tsIndex = find(ismember(allIDs,ts_id_range));
-    % tsIndex = arrayfun(@(x)find(allIDs==x,1),ts_id_range);
 end
-allIDs = [Operations.ID];
+allIDs = Operations.ID;
 if isempty(op_id_range)
     op_id_range = allIDs;
-    opCompute = ones(1,length(Operations));
+    opCompute = ones(1,height(Operations));
 else
     op_id_range = intersect(op_id_range,allIDs);
     opCompute = ismember(allIDs,op_id_range);
@@ -172,9 +177,9 @@ for i = 1:numTimeSeries
     % -----
     % Check that all operations have a master ID attached:
     % -----
-    if length([Operations(toCalc).MasterID]) < numCalc
+    if sum(toCalc) < numCalc
         % Error in the database structure; some operations are missing MasterID assignment
-        error('Database structure error: some operations have not been assigned a valid master operation');
+        error('??Database structure error: some operations have not been assigned a valid master operation');
     end
 
 	fprintf(1,'\n\n=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n');
@@ -183,10 +188,11 @@ for i = 1:numTimeSeries
 
     if numCalc > 0 % some to calculate
 		try
-	        [featureVector,calcTimes,calcQuality] = TS_CalculateFeatureVector(TimeSeries(tsInd),doParallel,Operations(toCalc),MasterOperations,1,beVocal);
+	        [featureVector,calcTimes,calcQuality] = TS_CalculateFeatureVector(TimeSeries(tsInd,:),...
+								doParallel,Operations(toCalc,:),MasterOperations,true,beVocal);
 		catch
-			% skip to the next time series; the entries for this time series in TS_DataMat etc. will remain NaNs
-			warning('Calculation for time series %u / %u failed',i,numTimeSeries)
+			skip to the next time series; the entries for this time series in TS_DataMat etc. will remain NaNs
+			warning('Calculation for time series %u / %u failed...',i,numTimeSeries)
 			continue
 		end
 

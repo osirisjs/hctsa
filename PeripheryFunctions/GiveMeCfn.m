@@ -13,13 +13,19 @@ function [accuracy,Mdl,whatLoss] = GiveMeCfn(whatClassifier,XTrain,yTrain,XTest,
 % whatLoss -- what loss function to compute on the data
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -45,7 +51,7 @@ if nargin < 6
     numClasses = max(yTrain);
 end
 if nargin < 7
-    beVerbose = 0;
+    beVerbose = false;
 end
 if nargin < 8 || isempty(whatLoss)
     % See if it's a balanced problem, and set defaults accordingly
@@ -54,10 +60,10 @@ if nargin < 8 || isempty(whatLoss)
     isBalanced = all(classNumbers==classNumbers(1));
     if isBalanced
         whatLoss = 'acc';
-        reWeight = 0;
+        reWeight = false;
     else
         whatLoss = 'balancedAcc';
-        reWeight = 1;
+        reWeight = true;
         if beVerbose
             fprintf(1,'Unbalanced classes: using a balanced accuracy measure (& using reweighting)...\n');
         end
@@ -66,7 +72,7 @@ end
 if ~exist('reWeight','var')
     % Reweighted observations by inverse probability weight
     % (for class imbalanced problems)
-    reWeight = 1;
+    reWeight = true;
 end
 if nargin < 10
     CVFolds = 0;
@@ -87,6 +93,9 @@ if numClasses==2
     % Binary model (easier):
     switch whatClassifier
     case 'knn'
+        if beVerbose
+            fprintf(1,'Using three neighbors for knn\n');
+        end
         if CVFolds > 0
             Mdl = fitcknn(XTrain,yTrain,'NumNeighbors',3,'KFold',CVFolds);
         else
@@ -187,13 +196,11 @@ end
 %-------------------------------------------------------------------------------
 % Evaluate performance on test data:
 %-------------------------------------------------------------------------------
-
-% Predict for the test data:
+% Predict the test data:
 if CVFolds == 0
     if isempty(XTest) || isempty(yTest)
         % No need to compute this if you're just after the model
         accuracy = [];
-        balancedAccuracy = [];
         return
     else
         yPredict = predict(Mdl,XTest);
@@ -203,10 +210,16 @@ else
     % Test data is mixed through the training data provided using k-fold cross validation
     % Output is the accuracy/loss measure for each fold, can mean it themselves if they want to
     yPredict = kfoldPredict(Mdl);
-    accuracy = arrayfun(@(x) BF_lossFunction(yTrain(Mdl.Partition.test(x)),...
-                                yPredict(Mdl.Partition.test(x)),whatLoss,numClasses),...
-                                    1:CVFolds);
+    computePerFold = false;
+    if computePerFold
+        % Compute separately for each fold, store in vector accuracy:
+        accuracy = arrayfun(@(x) BF_lossFunction(yTrain(Mdl.Partition.test(x)),...
+                                    yPredict(Mdl.Partition.test(x)),whatLoss,numClasses),...
+                                        1:CVFolds);
+    else
+        % Compute aggregate across all folds:
+        accuracy = BF_lossFunction(yTrain,yPredict,whatLoss,numClasses);
+    end
 end
-
 
 end

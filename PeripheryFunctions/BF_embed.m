@@ -14,7 +14,7 @@ function y_embed = BF_embed(y,tau,m,makeSignal,randomSeed,beVocal)
 %
 % makeSignal [opt], if 1, uses TSTOOL to embed and returns a signal object.
 %           (default = 0, i.e., not to do this and instead return matrix).
-%           If 2, returns a vector of [tau m] rather than any explicit embedding
+%           If 2, returns a vector of [tau,m] rather than doing any actual embedding.
 %
 % randomSeed, whether (and how) to reset the random seed, using BF_ResetSeed
 %
@@ -25,13 +25,19 @@ function y_embed = BF_embed(y,tau,m,makeSignal,randomSeed,beVocal)
 % TSTOOL: http://www.physik3.gwdg.de/tstool/
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -49,12 +55,13 @@ function y_embed = BF_embed(y,tau,m,makeSignal,randomSeed,beVocal)
 
 N = length(y); % length of the input time series, y
 
+% ---[[NOTE: other input checking done later, below]]---
 % randomSeed: how to treat the randomization
 if nargin < 5
     randomSeed = []; % default
 end
 if nargin < 6
-    beVocal = 0; % by default, do not display information about the embedding
+    beVocal = false; % by default, do not display information about the embedding
 end
 
 % ------------------------------------------------------------------------------
@@ -68,10 +75,16 @@ else
         switch tau
             case 'mi' % first minimum of mutual information function
                 tau = CO_FirstMin(y,'mi');
+                if isnan(tau)
+                    error('Could not get time delay by mutual information (time series too short?)');
+                end
                 sstau = sprintf('by first minimum of mutual information to tau = ');
             case 'ac' % first zero-crossing of ACF
                 tau = CO_FirstZero(y,'ac');
                 sstau = sprintf('by first zero crossing of autocorrelation function to tau = ');
+                if isnan(tau)
+                    error('Could not get time delay by ACF (time series too short?)');
+                end
             otherwise
                 error('Invalid time-delay method ''%s''.',tau)
         end
@@ -93,7 +106,6 @@ else % use a routine to inform m
     if ischar(m{1})
         switch m{1}
             case 'tisean'
-                % Ben Fulcher, 2015-03-21
                 % Uses TISEAN false_nearest code
                 if length(m) == 1
                     th = 0.4;

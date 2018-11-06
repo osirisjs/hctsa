@@ -2,20 +2,26 @@ function success = TS_InitiateParallel(doInitiate)
 % Initiates a parallel session for hctsa
 %
 %---INPUT:
-% doInitiate: = 1 for the first time you want to initialize all workers
+% doInitiate: = true for the first time you want to initialize all workers
 %
 %---OUTPUT:
-% success -- = 1 if a matlabpool was successfully initiated (or if one already
+% success = true if a matlabpool was successfully initiated (or if one already
 %               exists)
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -26,7 +32,7 @@ function success = TS_InitiateParallel(doInitiate)
 
 % Check inputs:
 if nargin < 1
-    doInitiate = 0;
+    doInitiate = false;
 end
 
 % Check a license is available:
@@ -35,10 +41,10 @@ try
 catch
     fprintf(1,['License for Parallel Computing Toolbox could not be initiated' ...
                     ' -- cannot perform computations across multiple cores\n']);
-    success = 0;
+    success = false;
     return
 end
-success = 1;
+success = true;
 
 %-------------------------------------------------------------------------------
 matlabVersion = version('-release');
@@ -58,7 +64,7 @@ try
             fprintf(1,['Matlab parallel processing pool opened with %u ' ...
                                     'workers\n'],numWorkers);
             % Regardless of what you input -- must initiate in this case:
-            doInitiate = 1;
+            doInitiate = true;
         else
             % Get number of workers:
             numWorkers = poolObj.NumWorkers;
@@ -77,8 +83,9 @@ try
         end
     end
 catch emsg
-    warning('\nError starting parallel processing pool -- running serially instead:\n%s',emsg.message)
-    success = 0;
+    warning('\nError starting parallel processing pool -- running serially instead:\n%s',...
+                    emsg.message)
+    success = false;
 end
 
 %-------------------------------------------------------------------------------

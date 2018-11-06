@@ -16,6 +16,28 @@ function TS_compareFilters(whatData,whatClassifier)
 %---USAGE:
 % TS_compareFilters('norm','svm_linear');
 
+% ------------------------------------------------------------------------------
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% <http://www.benfulcher.com>
+%
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
+% analysis: the empirical structure of time series and their methods",
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
+%
+% This work is licensed under the Creative Commons
+% Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
+% this license, visit http://creativecommons.org/licenses/by-nc-sa/4.0/ or send
+% a letter to Creative Commons, 444 Castro Street, Suite 900, Mountain View,
+% California, 94041, USA.
+% ------------------------------------------------------------------------------
+
 %-------------------------------------------------------------------------------
 % Check inputs:
 %-------------------------------------------------------------------------------
@@ -32,14 +54,13 @@ end
 [TS_DataMat,TimeSeries,Operations,dataFile] = TS_LoadData(whatData);
 
 % Check that group labels have been assigned
-if ~isfield(TimeSeries,'Group')
+if ~ismember('Group',TimeSeries.Properties.VariableNames)
     error('Group labels not assigned to time series. Use TS_LabelGroups.');
 end
 load(dataFile,'groupNames');
-timeSeriesGroup = [TimeSeries.Group]'; % Use group form (column vector)
-numClasses = max(timeSeriesGroup); % assuming group in form of integer class labels starting at 1
-numFeatures = length(Operations);
-numFolds = howManyFolds(timeSeriesGroup,numClasses);
+numClasses = max(TimeSeries.Group); % assuming group in form of integer class labels starting at 1
+numFeatures = height(Operations);
+numFolds = howManyFolds(TimeSeries.Group,numClasses);
 
 %-------------------------------------------------------------------------------
 % Get the filters
@@ -70,22 +91,22 @@ fprintf(1,['Training and evaluating a %u-class %s classifier using %u-fold cross
 for i = 1:6
     switch i
     case 1
-        filter = true(length(Operations),1);
+        filter = true(height(Operations),1);
         names{1} = 'all';
     case 2
-        filter = ismember([Operations.ID],ID_notlengthDep);
+        filter = ismember(Operations.ID,ID_notlengthDep);
         names{2} = 'no length';
     case 3
-        filter = ismember([Operations.ID],ID_notlocDep);
+        filter = ismember(Operations.ID,ID_notlocDep);
         names{3} = 'no location';
     case 4
-        filter = ismember([Operations.ID],ID_notspreadDep);
+        filter = ismember(Operations.ID,ID_notspreadDep);
         names{4} = 'no spread';
     case 5
-        filter = ismember([Operations.ID],ID_notraw);
+        filter = ismember(Operations.ID,ID_notraw);
         names{5} = 'no raw';
     case 6
-        filter = ismember([Operations.ID],intersect(intersect(ID_notlengthDep, ID_notlocDep), ID_notspreadDep));
+        filter = ismember(Operations.ID,intersect(intersect(ID_notlengthDep,ID_notlocDep),ID_notspreadDep));
         names{6} = 'no length, location, spread';
     end
     [foldLosses,~,whatLoss] = GiveMeCfn(whatClassifier,TS_DataMat(:,filter),...

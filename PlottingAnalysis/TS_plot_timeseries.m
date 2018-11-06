@@ -8,20 +8,26 @@ function TS_plot_timeseries(whatData,numPerGroup,whatTimeSeries,maxLength,plotOp
 %
 % whatTimeSeries, Can provide indices to plot that subset, a keyword to plot
 %                   matches to the keyword, 'all' to plot all, or an empty vector
-%                   to plot default groups in TimeSeries.Group
+%                   to plot group information assigned to TimeSeries.Group
 %
 % maxLength, the maximum number of samples of each time series to plot
 %
 % plotOptions, additional plotting options as a structure
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -42,6 +48,9 @@ if nargin < 2 || isempty(numPerGroup)
     % Default: plot 10 time series per group
     numPerGroup = 10;
 end
+if numPerGroup==0
+    error('numPerGroup cannot be zero');
+end
 
 % Can specify a reduced set of time series by keyword
 if nargin < 3
@@ -58,20 +67,22 @@ if nargin < 5
 	plotOptions = [];
 end
 
-% ------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
 % Evaluate any custom plotting options specified in the structure plotOptions
-% ------------------------------------------------------------------------------
-
+%-------------------------------------------------------------------------------
 if isstruct(plotOptions) && isfield(plotOptions,'displayTitles')
     displayTitles = plotOptions.displayTitles;
 else
     % Show titles -- removing them allows more to be fit into plot
-    displayTitles = 1; % show titles by default
+    displayTitles = true; % show titles by default
 end
 if isstruct(plotOptions) && isfield(plotOptions,'howToFilter')
     howToFilter = plotOptions.howToFilter;
 else
     howToFilter = 'evenly'; % by default
+    % 'firstcome' (first time series in order)
+    % 'evenly' (evenly spaced across the ordering)
+    % 'rand' (random set; picks different time series each time)
 end
 % Specify the colormap to use
 if isstruct(plotOptions) && isfield(plotOptions,'colorMap')
@@ -83,7 +94,7 @@ end
 if isstruct(plotOptions) && isfield(plotOptions,'plotFreeForm')
     plotFreeForm = plotOptions.plotFreeForm;
 else
-    plotFreeForm = 1; % do a normal subplotted figure
+    plotFreeForm = true; % do a normal subplotted figure
 end
 % Specify line width for plotting
 if isstruct(plotOptions) && isfield(plotOptions,'LineWidth')
@@ -95,63 +106,76 @@ end
 if isstruct(plotOptions) && isfield(plotOptions,'newFigure')
     newFigure = plotOptions.newFigure;
 else
-    newFigure = 1;
+    newFigure = true;
+end
+% Sorting time series by length can help visualization
+if isstruct(plotOptions) && isfield(plotOptions,'sortByLength')
+    sortByLength = plotOptions.sortByLength;
+else
+    sortByLength = false;
+end
+% Carpet plot instead...?
+if isstruct(plotOptions) && isfield(plotOptions,'carpetPlot')
+    carpetPlot = plotOptions.carpetPlot;
+else
+    carpetPlot = false;
 end
 
 % ------------------------------------------------------------------------------
 %% Load data
 % ------------------------------------------------------------------------------
 [~,TimeSeries] = TS_LoadData(whatData);
+if sortByLength
+    TimeSeries = sortrows(TimeSeries,'Length','descend');
+end
 
 % ------------------------------------------------------------------------------
 %% Get group indices:
 % ------------------------------------------------------------------------------
-if (isempty(whatTimeSeries) || strcmp(whatTimeSeries,'grouped')) && isfield(TimeSeries,'Group');
-    % Use default groups
-    groupIndices = BF_ToGroup([TimeSeries.Group]);
-    fprintf(1,'Plotting from %u groups of time series from file.\n',length(groupIndices));
+if (isempty(whatTimeSeries) || strcmp(whatTimeSeries,'grouped')) && ismember('Group',TimeSeries.Properties.VariableNames)
+    % Use default groups assigned by TS_LabelGroups
+    groupIndices = BF_ToGroup(TimeSeries.Group);
+    numGroups = length(groupIndices);
+    groupNames = TS_GetFromData(whatData,'groupNames');
+    fprintf(1,'Plotting from %u groups of time series from file.\n',numGroups);
 elseif isempty(whatTimeSeries) || strcmp(whatTimeSeries,'all')
     % Nothing specified but no groups assigned, or specified 'all': plot from all time series
-    groupIndices = {1:length(TimeSeries)};
+    groupIndices = {1:height(TimeSeries)};
+    groupNames = {};
 elseif ischar(whatTimeSeries)
     % Just plot the specified group
     % First load group names:
-    if isstruct(whatData)
-        groupNames = whatData.groupNames;
-    else
-        load(theFile,'groupNames');
-    end
+    groupNames = TS_GetFromData(dataSource,'groupNames');
     a = strcmp(whatTimeSeries,groupNames);
-    groupIndices = {find([TimeSeries.Group]==find(a))};
+    groupIndices = {find(TimeSeries.Group==find(a))};
+    groupNames = {whatTimeSeries};
     fprintf(1,'Plotting %u time series matching group name ''%s''\n',length(groupIndices{1}),whatTimeSeries);
 else % Provided a custom range as a vector
     groupIndices = {whatTimeSeries};
+    groupNames = {};
     fprintf(1,'Plotting the %u time series matching indices provided\n',length(whatTimeSeries));
 end
 numGroups = length(groupIndices);
 
-% ------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
 %% Do the plotting
-% ------------------------------------------------------------------------------
-% Want numPerGroup from each time series group
+%-------------------------------------------------------------------------------
+% Want to plot numPerGroup from each time-series group
 iPlot = zeros(numGroups*numPerGroup,1);
 classes = zeros(numGroups*numPerGroup,1);
 nhere = zeros(numGroups,1);
 groupSizes = cellfun(@length,groupIndices);
 
 for i = 1:numGroups
-    % filter down to numPerGroup if too many in group, otherwise plot all in
-    % group
+    % filter down to numPerGroup if too many in group, otherwise plot all in group
     switch howToFilter
         case 'firstcome'
             % just plot first in group (useful when ordered by closeness to
             % cluster centre)
             jj = (1:min(numPerGroup,groupSizes(i)));
-
         case 'evenly'
             % Plot evenly spaced through the given ordering
             jj = unique(round(linspace(1,groupSizes(i),numPerGroup)));
-
         case 'rand'
             % select ones to plot at random
             if groupSizes(i) > numPerGroup
@@ -162,6 +186,9 @@ for i = 1:numGroups
             else
                 jj = (1:min(numPerGroup,groupSizes(i))); % retain order if not subsampling
             end
+            jj = sort(jj,'ascend'); % Order time series in ascending order of index
+        otherwise
+            error('Unknown filtering option ''%s''',howToFilter);
     end
     nhere(i) = length(jj); % could be less than numPerGroup if a smaller group
     rh = sum(nhere(1:i-1))+1:sum(nhere(1:i)); % range here
@@ -178,7 +205,52 @@ numToPlot = length(iPlot);
 %-------------------------------------------------------------------------------
 fprintf(1,'Plotting %u (/%u) time series from %u classes\n', ...
                     numToPlot,sum(cellfun(@length,groupIndices)),numGroups);
+%-------------------------------------------------------------------------------
 
+% Create a new figure if required
+if newFigure
+    figure('color','w');
+end
+
+% Set default for max length if unspecified (as max length of time series)
+if isempty(maxLength)
+    ls = TimeSeries.Length(iPlot(i));
+    maxN = max(ls); % maximum length of all time series to plot
+else
+    maxN = maxLength;
+end
+
+% Carpet plot is just a grayscale visualization of many time series
+if carpetPlot
+    % Assemble time-series data matrix:
+    X = nan(numToPlot,maxN);
+    for i = 1:numToPlot
+        x = TimeSeries.Data{iPlot(i)};
+        L = min(maxN,length(x));
+        X(i,1:L) = x(1:L);
+        % NB: other plotting uses random subsegment when longer; here just plot first maxN samples
+    end
+    % Normalize:
+    Xnorm = BF_NormalizeMatrix(X','maxmin')'; % linearly normalize across rows
+    imagesc(Xnorm);
+
+    colormap(gray)
+
+    % Add filenames to axes:
+    if displayTitles
+        ax = gca;
+        fn = TimeSeries.Name{iPlot}; % the name of the time series
+        ax.YTick = 1:numToPlot;
+        ax.YTickLabel = fn;
+        ax.TickLabelInterpreter = 'none';
+    end
+    xlabel('Time (samples)')
+    return
+end
+
+%-------------------------------------------------------------------------------
+% Set colormap
+%-------------------------------------------------------------------------------
 if isnumeric(colorMap)
     % Specified a custom colormap as a matrix
     theColors = mat2cell(colorMap);
@@ -190,12 +262,9 @@ else
     theColors = GiveMeColors(numGroups);
 end
 
-% ------------------------------------------------------------------------------
-% Only create a new figure if required
-if newFigure
-    figure('color','w');
-end
-
+%-------------------------------------------------------------------------------
+% Plot as conventional time series
+%-------------------------------------------------------------------------------
 Ls = zeros(numToPlot,1); % length of each plotted time series
 if plotFreeForm
     % FREEFORM: make all within a single plot with text labels
@@ -203,27 +272,18 @@ if plotFreeForm
     ax.Box = 'on';
     hold(ax,'on');
 
-	yr = linspace(1,0,numToPlot+1);
+    yr = linspace(1,0,numToPlot+1);
     inc = abs(yr(2)-yr(1)); % size of increment
     yr = yr(2:end);
-	ls = zeros(numToPlot,1); % lengths of each time series
-	if isempty(maxLength)
-		for i = 1:numToPlot
-			ls(i) = length(TimeSeries(iPlot(i)).Data);
-		end
-		maxN = max(ls); % maximum length of all time series to plot
-	else
-		maxN = maxLength;
-	end
+    ls = zeros(numToPlot,1); % lengths of each time series
 
+    pHandles = zeros(numToPlot,1); % keep plot handles
 	for i = 1:numToPlot
-	    fn = TimeSeries(iPlot(i)).Name; % the name of the time series
-	    kw = TimeSeries(iPlot(i)).Keywords; % the keywords
-	    x = TimeSeries(iPlot(i)).Data;
+        x = TimeSeries.Data{iPlot(i)};
 	    N0 = length(x);
 		if ~isempty(maxN) && (N0 > maxN)
-			% specified a maximum length of time series to plot
-            sti = randi(N0-maxN,1);
+			% Specified a maximum length of time series to plot
+            sti = 1; % randi(N0-maxN,1);
 			x = x(sti:sti+maxN-1); % subset random segment
             N = length(x);
         else
@@ -238,14 +298,21 @@ if plotFreeForm
         else % plot by group color (or all black for 1 class)
             colorNow = theColors{classes(i)};
         end
-        plot(xx,xsc,'-','color',colorNow,'LineWidth',lw)
+        pHandles(i) = plot(xx,xsc,'-','color',colorNow,'LineWidth',lw);
 
         % Annotate text labels
 		if displayTitles
-			theTit = sprintf('{%u} %s [%s] (%u)',TimeSeries(iPlot(i)).ID,fn,kw,N0);
+			theTit = sprintf('{%u} %s [%s] (%u)',TimeSeries.ID(iPlot(i)),...
+                        TimeSeries.Name{iPlot(i)},TimeSeries.Keywords{iPlot(i)},N0);
 			text(0.01,yr(i)+0.9*inc,theTit,'interpreter','none','FontSize',8)
 	    end
 	end
+
+    % Legend:
+    if ~isempty(groupNames)
+        [~,b] = unique(classes);
+        legend(pHandles(b),groupNames,'interpreter','none');
+    end
 
     % Set up axes:
     ax.XTick = linspace(0,1,3);
@@ -256,17 +323,17 @@ if plotFreeForm
     xlabel('Time (samples)')
 
 else
-    % i.e., NOT a FreeForm plot:
-	for i = 1:numToPlot
-	    subplot(numToPlot,1,i)
-	    fn = TimeSeries(iPlot(i)).Name; % the filename
-	    kw = TimeSeries(iPlot(i)).Keywords; % the keywords
-	    x = TimeSeries(iPlot(i)).Data;
+    % NOT a 'free-form' plot:
+    for i = 1:numToPlot
+	    ax = subplot(numToPlot,1,i)
+	    fn = TimeSeries.Name{iPlot(i)}; % the filename
+	    kw = TimeSeries.Keywords{iPlot(i)}; % the keywords
+	    x = TimeSeries.Data{iPlot(i)};
 	    N = length(x);
 
 	    % Prepare text for the title
 		if displayTitles
-			startBit = sprintf('{%u} %s [%s]',TimeSeries(iPlot(i)).ID,fn,kw);
+			startBit = sprintf('{%u} %s [%s]',TimeSeries.ID(iPlot(i)),fn,kw);
 	    end
 
 	    % Plot the time series
@@ -275,7 +342,7 @@ else
 	        plot(x,'-','color',theColors{classes(i)})
 	        Ls(i) = N;
 	        if displayTitles
-	            title([startBit ' (' num2str(N) ')'],'interpreter','none','FontSize',8);
+	            title(sprintf('%s (%u)',startBit,N),'interpreter','none','FontSize',8);
 	        end
 	    else
 	        % Specified a maximum length of time series to plot: maxLength
@@ -283,32 +350,32 @@ else
 	            plot(x,'-','color',theColors{classes(i)});
 	            Ls(i) = N;
 	            if displayTitles
-	                title([startBit ' (' num2str(N) ')'],'interpreter','none','FontSize',8);
+	                title(sprintf('%s (%u)',startBit,N),'interpreter','none','FontSize',8);
 	            end
 	        else
 	            sti = randi(N-maxLength,1);
 	            plot(x(sti:sti+maxLength),'-','color',theColors{classes(i)}) % plot a random maxLength-length portion of the time series
 	            Ls(i) = maxLength;
 	            if displayTitles
-	                title([startBit ' (' num2str(N) ' :: ' num2str(sti) '-' num2str(sti+maxLength) ')'],...
+	                title(sprintf('%s (%u :: %u-%u)',startBit,N,sti,sti+maxLength),...
                                 'interpreter','none','FontSize',8);
 	            end
 	        end
 	    end
-	    set(gca,'YTickLabel','');
-	    if i~=numToPlot
-	        set(gca,'XTickLabel','','FontSize',8) % put the ticks for the last time series
+	    ax.YTickLabel = '';
+        if i~=numToPlot
+	        ax.XTickLabel = '';
+            ax.FontSize = 8; % put the ticks for the last time series
         else % label the axis
-            xlabel('Time (samples)')
+            ax.XLabel = 'Time (samples)';
         end
 	end
 
-	% Set all xlims so that they have the same x-axis limits
-	for i = 1:numToPlot
-	    ax = subplot(numToPlot,1,i);
+	% Set all subplots to have the same x-axis limits
+    for i = 1:numToPlot
+        ax = subplot(numToPlot,1,i);
         ax.XLim = [1,max(Ls)];
-	end
+    end
 end
-
 
 end

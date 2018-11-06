@@ -6,13 +6,19 @@ function SQL_store(writeWhat,dbname)
 % TS_compute.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -75,10 +81,10 @@ end
 % ------------------------------------------------------------------------------
 %% Preliminary definitions
 % ------------------------------------------------------------------------------
-numTS = length(TimeSeries); % Number of time series
-numOps = length(Operations); % Number of operations
-ts_id_loc = [TimeSeries.ID]; % tsids in local file
-op_id_loc = [Operations.ID]; % opids in local file
+numTS = height(TimeSeries); % Number of time series
+numOps = height(Operations); % Number of operations
+ts_id_loc = TimeSeries.ID; % tsids in local file
+op_id_loc = Operations.ID; % opids in local file
 ts_ids_string = BF_cat(ts_id_loc,',');
 op_ids_string = BF_cat(op_id_loc,',');
 
@@ -226,7 +232,7 @@ for i = 1:numWrite
         if ~isempty(emsg)
             SQL_closedatabase(dbc) % close the database connection before calling the error...
         	error('Error storing (ts_id,op_id) = (%u,%u) to %s??!!\n%s\n', ...
-                			[TimeSeries(localIndex(i,1)).ID],[Operations(localIndex(i,2)).ID],dbname,emsg);
+                			TimeSeries.ID(localIndex(i,1)),Operations.ID(localIndex(i,2)),dbname,emsg);
         end
     end
 

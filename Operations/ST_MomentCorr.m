@@ -27,13 +27,19 @@ function out = ST_MomentCorr(x,windowLength,wOverlap,mom1,mom2,whatTransform)
 %               (iv) 'none': does no whatTransformormation
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -49,7 +55,7 @@ function out = ST_MomentCorr(x,windowLength,wOverlap,mom1,mom2,whatTransform)
 % this program. If not, see <http://www.gnu.org/licenses/>.
 % ------------------------------------------------------------------------------
 
-doPlot = 0; % plot outputs
+doPlot = false; % plot outputs
 
 N = length(x); % number of samples in the input signal
 
@@ -79,7 +85,6 @@ end
 if nargin < 5 || isempty(mom2)
     mom2 = 'std';
 end
-
 if nargin < 6 || isempty(whatTransform)
     whatTransform = 'none';
 end
@@ -108,13 +113,16 @@ numWindows = (N/(windowLength-wOverlap)); % number of windows
 
 if size(x_buff,2) > numWindows
     % fprintf(1,'Should have %u columns but we have %u: removing last one',numWindows,size(x_buff,2))
-    x_buff = x_buff(:,1:end-1);
-end % lose last point
+    x_buff = x_buff(:,1:end-1); % lose last point
+end
+pointsPerWindow = size(x_buff,1);
+if pointsPerWindow==1
+    error('Time series (N=%u) too short for %u sliding windows',N,numWindows);
+end
 
 % ok, now we have the sliding window ('buffered') signal, x_buff
 % first calculate the first moment in all the windows (each column is a
 % 'window' of the signal
-
 M1 = SUB_calcmemoments(x_buff,mom1);
 M2 = SUB_calcmemoments(x_buff,mom2);
 

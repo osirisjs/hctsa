@@ -11,13 +11,19 @@ function out = MF_ResidualAnalysis(e)
 %       vector.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -43,10 +49,10 @@ BF_CheckToolbox('identification_toolbox')
 if size(e,2) > size(e,1)
     e = e'; % make sure residuals are a column vector
 end
-if all(e>0)
-    warning('Very weird that all model residuals are positive...')
-elseif all(e<0)
-    warning('Very weird that all model residuals are negative...')
+if all(e > 0)
+    warning('Very weird that ALL model residuals are positive...')
+elseif all(e < 0)
+    warning('Very weird that ALL model residuals are negative...')
 end
 N = length(e);
 
@@ -99,24 +105,24 @@ out.p5_5 = sum(gS(b(5)+1:b(6)))*(gf(2)-gf(1));
 % normal (within a constant).
 maxLag = 25;
 
-acs = CO_AutoCorr(e,1:maxLag,'Fourier'); % autocorrelations
+autoCorrResid = CO_AutoCorr(e,1:maxLag,'Fourier');
 sqrtN = sqrt(N);
 
 % Output first three acfs
-out.ac1 = acs(1);
-out.ac2 = acs(2);
-out.ac3 = acs(3);
-out.ac1n = abs(acs(1))*sqrtN; % units of 1/sqrtN from zero
-out.ac2n = abs(acs(2))*sqrtN; % units of 1/sqrtN from zero
-out.ac3n = abs(acs(3))*sqrtN; % units of 1/sqrtN from zero
+out.ac1 = autoCorrResid(1);
+out.ac2 = autoCorrResid(2);
+out.ac3 = autoCorrResid(3);
+out.ac1n = abs(autoCorrResid(1))*sqrtN; % units of 1/sqrtN from zero
+out.ac2n = abs(autoCorrResid(2))*sqrtN; % units of 1/sqrtN from zero
+out.ac3n = abs(autoCorrResid(3))*sqrtN; % units of 1/sqrtN from zero
 
 % Median normalized distance from zero
-out.acmnd0 = median(abs(acs))*sqrtN;
-out.acsnd0 = std(abs(acs))*sqrtN;
-out.propbth = sum(abs(acs) < 2.6/sqrtN)/maxLag;
+out.acmnd0 = median(abs(autoCorrResid))*sqrtN;
+out.acsnd0 = std(abs(autoCorrResid))*sqrtN;
+out.propbth = sum(abs(autoCorrResid) < 2.6/sqrtN)/maxLag;
 
 % First time to get below the significance threshold
-out.ftbth = find(abs(acs) < 2.6/sqrtN,1,'first');
+out.ftbth = find(abs(autoCorrResid) < 2.6/sqrtN,1,'first');
 if isempty(out.ftbth)
     out.ftbth = maxLag+1;
 end
@@ -124,9 +130,9 @@ end
 % Durbin-Watson test statistic (like AC1)
 out.dwts = sum((e(2:end)-e(1:end-1)).^2) / sum(e.^2);
 
-% ------------------------------------------------------------------------------
-%% Linear structure in residuals
-% ------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% Do the residuals contain Linear correlation structure?
+%-------------------------------------------------------------------------------
 % Fit a linear model and see if it picks up any structure.
 % There's also a suggestion in 'resid' documentation to fit an arx model to
 % the output of resid -- looks for correlations between inputs and
@@ -135,7 +141,7 @@ out.dwts = sum((e(2:end)-e(1:end-1)).^2) / sum(e.^2);
 % Fit a zero-mean AR process to residuals using the ARFIT package:
 emsg = '';
 try
-    [~, Aest, ~, SBC, FPE] = ARFIT_arfit(e, 1, 10, 'sbc', 'zero');
+    [~,Aest,~,SBC,FPE] = ARFIT_arfit(e,1,10,'sbc','zero');
 catch emsg
 end
 
@@ -153,11 +159,10 @@ else
     out.sbc1 = SBC(1);
 end
 
-
 % ------------------------------------------------------------------------------
 %% Distribution tests
 % ------------------------------------------------------------------------------
-[~, p, ksstat] = kstest(e);
+[~,p,ksstat] = kstest(e);
 out.normksstat = ksstat;
 out.normp = p;
 

@@ -34,13 +34,19 @@ function didWrite = SQL_retrieve(ts_ids,op_ids,retrieveWhatEntries,retrieveWhatD
 %--MasterOperations, contains metadata about the implicatedmaster operations
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -115,7 +121,7 @@ end
 % Open a database connection
 % ------------------------------------------------------------------------------
 % (attempt to use the Matlab database toolbox, which is faster for retrievals)
-[dbc, dbname] = SQL_opendatabase('',0,1);
+[dbc, dbname] = SQL_opendatabase('',false,true);
 
 % ------------------------------------------------------------------------------
 % Refine the set of time series and operations to those that actually exist in
@@ -402,38 +408,40 @@ end
 %% Fill Metadata
 % ------------------------------------------------------------------------------
 
-% 1. Retrieve Time Series Metadata
+% 1. Retrieve time-series metadata
 if ischar(ts_ids) && strcmp(ts_ids,'all')
 	selectString = 'SELECT Name, Keywords, Length, Data FROM TimeSeries';
 else
-	selectString = sprintf('SELECT Name, Keywords, Length, Data FROM TimeSeries WHERE ts_id IN (%s)',ts_ids_string);
+	selectString = sprintf(['SELECT Name, Keywords, Length, Data FROM ',...
+								'TimeSeries WHERE ts_id IN (%s)'],ts_ids_string);
 end
-tsinfo = mysql_dbquery(dbc,selectString);
-% Convert to a structure array, TimeSeries, containing metadata for all time series
-tsinfo = [num2cell(tsids_db),tsinfo];
+[tsInfo,emsg] = mysql_dbquery(dbc,selectString);
+if ~isempty(emsg)
+    error('Error retrieving time-series metadata from from %s',dbname);
+end
+% Convert to TimeSeries table that contains metadata for all time series
+tsInfo = [num2cell(tsids_db),tsInfo];
 % Define inline functions to convert time-series data text to a vector of floats:
 scanCommas = @(x) textscan(x,'%f','Delimiter',',');
-takeFirstCell = @(x) x{1};
-tsinfo(:,end) = cellfun(@(x) takeFirstCell(scanCommas(x)),tsinfo(:,end),'UniformOutput',0); % Do the conversion
-TimeSeries = cell2struct(tsinfo',{'ID','Name','Keywords','Length','Data'}); % Convert to structure array
-
+f_takeFirstCell = @(x) x{1};
+tsInfo(:,end) = cellfun(@(x) f_takeFirstCell(scanCommas(x)),tsInfo(:,end),'UniformOutput',false); % Do the conversion
+TimeSeries = cell2table(tsInfo','VariableNames',{'ID','Name','Keywords','Length','Data'}); % Convert to table
 
 % 2. Retrieve Operation Metadata
 % (even if specify 'all', can be fewer for 'null','error' cases, where you restrict
 % the operations that are actually retrieved to the local file)
 % [would still probably be faster to retrieve all above, and then subset the info using keepi]
 selectString = sprintf('SELECT Name, Keywords, Code, mop_id FROM Operations WHERE op_id IN (%s)',op_ids_string);
-opinfo = mysql_dbquery(dbc,selectString);
-opinfo = [num2cell(opids_db), opinfo]; % add op_ids
-Operations = cell2struct(opinfo',{'ID','Name','Keywords','CodeString','MasterID'});
-
+opInfo = mysql_dbquery(dbc,selectString);
+opInfo = [num2cell(opids_db), opInfo]; % add op_ids
+Operations = cell2table(opInfo','VariableNames',{'ID','Name','Keywords','CodeString','MasterID'}); % Convert to table
 
 % Check that no operations have bad links to master operations:
-if any(isnan([Operations.MasterID]))
+if any(isnan(Operations.MasterID))
     fisBad = find(isnan([Operations.MasterID]));
     for i = 1:length(fisBad)
         fprintf(1,'Bad link (no master match): %s -- %s\n',...
-					Operations(fisBad(i)).Name,Operations(fisBad(i)).CodeString);
+					Operations.Name{fisBad(i)},Operations.CodeString{fisBad(i)});
     end
     error('Bad links of %u operations to non-existent master operations',length(fisBad));
 end
@@ -442,18 +450,55 @@ end
 % 3. Retrieve Master Operation Metadata
 % (i) Which masters are implicated?
 selectString = ['SELECT mop_id, MasterLabel, MasterCode FROM MasterOperations WHERE mop_id IN ' ...
-        				'(' BF_cat(unique([Operations.MasterID]),',') ')'];
+        				'(' BF_cat(unique(Operations.MasterID),',') ')'];
 [masterinfo,emsg] = mysql_dbquery(dbc,selectString);
 if ~isempty(emsg)
     fprintf(1,'Error retrieving Master information using:\n%s\n',selectString);
     disp(emsg);
     error('Master information could not be retrieved')
+end
+MasterOperations = cell2table(masterinfo','VariableNames',{'ID','Label','Code'}); % Convert to table
+
+%-------------------------------------------------------------------------------
+% Get the git information
+%-------------------------------------------------------------------------------
+selectString = 'SELECT branch,hash,remote,url FROM GitInfo';
+[gitDatabase,emsg] = mysql_dbquery(dbc,selectString);
+gitInfoDatabase = struct();
+if ~isempty(emsg)
+	fprintf(1,'Error retrieving git repository info from the database\n');
 else
-    MasterOperations = cell2struct(masterinfo',{'ID','Label','Code'});
+	gitInfoDatabase.branch = gitDatabase{1};
+	gitInfoDatabase.hash = gitDatabase{2};
+	gitInfoDatabase.remote = gitDatabase{3};
+	gitInfoDatabase.url = gitDatabase{4};
 end
 
+%-------------------------------------------------------------------------------
 % Close database connection
+%-------------------------------------------------------------------------------
 SQL_closedatabase(dbc)
+
+%-------------------------------------------------------------------------------
+% Compare git from database to git of local hctsa
+%-------------------------------------------------------------------------------
+gitInfoLocal = TS_AddGitInfo(); % add details of current git repository
+if isempty(gitInfoLocal)
+	warning('No local git repository information found')
+end
+if ~isempty(gitInfoLocal)
+	% Check hash matches:
+	if strcmp(gitInfoLocal.hash,gitInfoDatabase.hash)
+		fprintf(1,'Yay! Local git repo matches that used when generating the database :)\n');
+	else
+		warning(sprintf(['hctsa version has changed since the database was generated.\n',...
+				'%s -> %s\n',...
+				'Storing database version in local HCTSA file.\n',...
+				'Be very careful for inconsistencies if computing features...'],...
+				gitInfoDatabase.hash,gitInfoLocal.hash))
+	end
+end
+gitInfo = gitInfoDatabase;
 
 % ------------------------------------------------------------------------------
 %% Save to HCTSA.mat
@@ -461,8 +506,8 @@ SQL_closedatabase(dbc)
 outputFileName = 'HCTSA.mat';
 fprintf(1,'Saving local versions of the data to %s...',outputFileName);
 saveTimer = tic;
-fromDatabase = 1; % mark that we retrieved this data from the mySQL database
-save('HCTSA.mat','TimeSeries','Operations','MasterOperations','fromDatabase','-v7.3');
+fromDatabase = true; % mark that we retrieved this data from the mySQL database
+save('HCTSA.mat','TimeSeries','Operations','MasterOperations','fromDatabase','gitInfo','-v7.3');
 switch retrieveWhatData
 case 'all'
     % Add outputs, quality labels, and calculation times

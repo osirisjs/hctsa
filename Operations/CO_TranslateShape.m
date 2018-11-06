@@ -1,6 +1,5 @@
 function out = CO_TranslateShape(y,shape,d,howToMove)
-% CO_TranslateShape     Statistics on the number of datapoints residing inside
-% geometric shapes moved across the time series.
+% CO_TranslateShape  Statistics on datapoints inside geometric shapes across the time series.
 %
 % Inputs specify a shape and its size, and a method for moving this shape
 % through the time domain.
@@ -13,19 +12,25 @@ function out = CO_TranslateShape(y,shape,d,howToMove)
 %
 %---INPUTS:
 % y, the input time series
-% shape, the shape to move about the time-domain ('circle')
+% shape, the shape to move about the time-domain (e.g., 'circle')
 % d, a parameter specifying the size of the shape (e.g., d = 2)
 % howToMove, a method specifying how to move the shape about, e.g., 'pts'
 %               places the shape on each point in the time series.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -104,20 +109,18 @@ switch howToMove
 end
 
 %-------------------------------------------------------------------------------
+% Output statistics:
 
-% -----
 % Maximum possible hits in the shape:
-% -----
 out.max = max(np);
 out.std = std(np);
 out.mean = mean(np);
 
 % Count the hits:
 histnp = arrayfun(@(x)sum(np==x),unique(np));
-% bar(histnp)
 
-% Compute mode:
-[out.npatmode, out.mode] = max(histnp);
+% Compute mode of the histogram:
+[out.npatmode,out.mode] = max(histnp);
 out.npatmode = out.npatmode/NN;
 
 % Output all stats:
@@ -134,17 +137,13 @@ if 2*w + 1 >= 10; out.tens = mean(np==10); end
 if 2*w + 1 >= 11; out.elevens = mean(np==11); end
 
 % -----
-% Stationarity in 2,3,4 segments
-% -----
+% Stationarity of the statistics in 2,3, & 4 segments of the time series:
+
 out.statav2_m = SY_SlidingWindow(np,'mean','std',2,1);
 out.statav2_s = SY_SlidingWindow(np,'std','std',2,1);
 out.statav3_m = SY_SlidingWindow(np,'mean','std',3,1);
 out.statav3_s = SY_SlidingWindow(np,'std','std',3,1);
 out.statav4_m = SY_SlidingWindow(np,'mean','std',4,1);
 out.statav4_s = SY_SlidingWindow(np,'std','std',4,1);
-
-% plot(np)
-
-
 
 end

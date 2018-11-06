@@ -1,4 +1,4 @@
-function [distMat_cl,cluster_Groupi,ord] = BF_ClusterDown(distMat,varargin)
+function [distMat_cl,cluster_Groupi,ord,handles] = BF_ClusterDown(distMat,varargin)
 % BF_ClusterDown    Reduce a pairwise distance matrix into smaller clusters.
 %
 % Yields a visualization of a pairwise distance matrix, including a set of
@@ -8,7 +8,7 @@ function [distMat_cl,cluster_Groupi,ord] = BF_ClusterDown(distMat,varargin)
 % distMat, a pairwise distance vector or matrix (e.g., generated from pdist)
 % [EXTRA OPTIONS]:
 % 'clusterThreshold', the threshold in the dendrogram for forming clusters
-% 'objectLabels', labels for axes labels
+% 'objectLabels', labels for axes
 % 'whatDistance', the type of distance metric used:
 %        (i) 'corr' (default): provide 1-R, where R is correlation coefficient
 %        (ii) 'abscorr': provide correlation distances, 1-R, but clustering is
@@ -24,15 +24,23 @@ function [distMat_cl,cluster_Groupi,ord] = BF_ClusterDown(distMat,varargin)
 % distMat_cl, the distance matrix re-ordered by clustering
 % cluster_Groupi, the assignment of nodes to clusters (cell of indices)
 % ord, the ordering of objects in the dendrogram
+% handles, structure containing handles to plotting elements, f (figure),
+%               ax1 (dendrogram), ax2 (pairwise correlation matrix)
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -51,7 +59,7 @@ inputP = inputParser;
 default_clusterThreshold = 0.2;
 addParameter(inputP,'clusterThreshold',default_clusterThreshold,@isnumeric);
 
-% Object labels for axis labels
+% Object labels for axes
 default_objectLabels = {};
 addParameter(inputP,'objectLabels',default_objectLabels,@iscell);
 
@@ -92,7 +100,7 @@ whatDistance = inputP.Results.whatDistance;
 % clusterMeth = inputP.Results.clusterMeth;
 linkageMeth = inputP.Results.linkageMeth;
 % plotBig = inputP.Results.plotBig;
-clear inputP;
+clear('inputP');
 
 %-------------------------------------------------------------------------------
 % Work with vector form of distances (hopefully enough memory)
@@ -174,16 +182,15 @@ cluster_Groupi = cluster_Groupi(ix);
 % Select the closest to cluster centre in each group
 clusterCenters = cellfun(@(x)x(1),cluster_Groupi);
 
-cluster_Groupi_cl = cellfun(@(x)arrayfun(@(y)find(ord==y),x),cluster_Groupi,'UniformOutput',0);
+cluster_Groupi_cl = cellfun(@(x)arrayfun(@(y)find(ord==y),x),cluster_Groupi,...
+                                                'UniformOutput',false);
 clusterCenters_cl = arrayfun(@(y)find(ord==y),clusterCenters);
 
 % ------------------------------------------------------------------------------
 % Now plot it:
 % ------------------------------------------------------------------------------
-
 % Make a square distance matrix, and plot as a pairwise similarity matrix
 % (reordered by ord determined above)
-
 ax2 = subplot(1,6,2:5);
 switch whatDistance
 case {'corr','abscorr_ii'}
@@ -254,5 +261,13 @@ ax2.YLim = [0.5,numItems+0.5];
 ax1.Position(1) = ax2.Position(1) + ax2.Position(3);
 ax1.Position(4) = ax2.Position(4);
 ax1.Position(2) = ax2.Position(2);
+
+% Handles
+if nargout > 3
+    handles = struct();
+    handles.f = f;
+    handles.ax1 = ax1;
+    handles.ax2 = ax2;
+end
 
 end

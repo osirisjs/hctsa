@@ -1,5 +1,5 @@
 function out = NL_TISEAN_fnn(y,tau,maxm,theilerWin,justBest,bestp)
-% NL_TISEAN_fnn     false nearest neighbors of a time series.
+% NL_TISEAN_fnn     False nearest neighbors of a time series.
 %
 %---INPUTS:
 % y, the input time series
@@ -30,13 +30,19 @@ function out = NL_TISEAN_fnn(y,tau,maxm,theilerWin,justBest,bestp)
 % in Matlab, and require that TISEAN is installed and compiled, and able to be
 % executed in the command line.
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -52,15 +58,18 @@ function out = NL_TISEAN_fnn(y,tau,maxm,theilerWin,justBest,bestp)
 % this program. If not, see <http://www.gnu.org/licenses/>.
 % ------------------------------------------------------------------------------
 
-doPlot = 0; % can turn on to see plotted summaries
+doPlot = false; % can turn on to see plotted summaries
 
 % ------------------------------------------------------------------------------
 %% Check inputs / set defaults
 % ------------------------------------------------------------------------------
-N = length(y);
-
 if nargin < 1
     error('Input a time series')
+end
+N = length(y);
+if N < 10
+    warning('Time series (N=%u) too short for fnn',N);
+    out = NaN; return
 end
 
 if nargin < 2 || isempty(tau)
@@ -70,6 +79,9 @@ if strcmp(tau,'ac')
     tau = CO_FirstZero(y,'ac'); % first zero-crossing of autocorrelation function
 elseif strcmp(tau,'mi')
     tau = CO_FirstMin(y,'mi'); % first minimum of automutual information function
+end
+if isnan(tau)
+    error('Time series cannot be embedded (too short?)');
 end
 
 % Maximum embedding dimension:
@@ -87,7 +99,7 @@ end
 
 % Just return best dimension:
 if nargin < 5 || isempty(justBest)
-    justBest = 1; % just return the best embedding dimension
+    justBest = true; % just return the best embedding dimension
 end
 
 % How to return the best embedding dimension:

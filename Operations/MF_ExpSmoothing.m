@@ -7,7 +7,7 @@ function out = MF_ExpSmoothing(x,ntrain,alpha)
 %
 % cf. "The Analysis of Time Series", C. Chatfield, CRC Press LLC (2004)
 %
-% Code is adapted from original code provided by Siddharth Arora:
+% Code is adapted from that provided by Siddharth Arora:
 % Siddharth.Arora@sbs.ox.ac.uk
 %
 %---INPUTS:
@@ -26,13 +26,19 @@ function out = MF_ExpSmoothing(x,ntrain,alpha)
 % of the time series.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -48,7 +54,7 @@ function out = MF_ExpSmoothing(x,ntrain,alpha)
 % this program. If not, see <http://www.gnu.org/licenses/>.
 % ------------------------------------------------------------------------------
 
-doPlot = 0; % plot outputs
+doPlot = false; % plot outputs
 N = length(x); % the length of the time series
 
 %-------------------------------------------------------------------------------
@@ -59,20 +65,20 @@ N = length(x); % the length of the time series
 if nargin < 2 || isempty(ntrain)
     ntrain = min(100,N); % if the time series is shorter than 100 samples(!)
 end
-if (ntrain > 0) && (ntrain < 1) % given training set length as proportion
-                            % of the time series length
+% Can give training set length as a proportion of the time-series length:
+if (ntrain > 0) && (ntrain < 1)
     ntrain = floor(N*ntrain);
 end
 
-% Check training set sizes:
-mintrain = 100; % Minimum training set size
-maxtrain = 1000; % Maximum training set size
+% Check training set size is between the following range:
+minTrain = 100;
+maxTrain = 1000;
 
-if ntrain > maxtrain; % larger than maximum training set size
+if ntrain > maxTrain; % larger than maximum training set size
     fprintf(1,'Training set size reduced from %u to maximum of 1000 samples.\n',ntrain);
     ntrain = 1000;
 end
-if ntrain < mintrain; % smaller than minimum training set size
+if ntrain < minTrain; % smaller than minimum training set size
     fprintf(1,'Training set size increased from %u to minimum of 100.\n',ntrain);
     ntrain = 100;
 end
@@ -87,13 +93,10 @@ if nargin < 3 || isempty(alpha)
     alpha = 'best';
 end
 
-
+%-------------------------------------------------------------------------------
 % Exponential smoothing
 % Using: S(t+1) = A.X(t+1) + (1-A).S(t) where S(1) = X(1)
 % Finding optimum parameter A [0,1] using RMSE
-
-% n1 = length(x);
-% count = 1;
 
 if strcmp(alpha,'best')
     %% (*) Optimize alpha (*)
@@ -105,9 +108,10 @@ if strcmp(alpha,'best')
     % Training set xtrain
     xtrain = x(1:ntrain);
 
-    bruteforce = 0;
+    % The brute force method is much slower:
+    bruteForce = false;
 
-    if bruteforce
+    if bruteForce
         % set a range of alpha and find minimum
         alphar = (0.1:0.1:1); % the exponential smoothing parameter
         nalpha = length(alphar);
@@ -216,7 +220,7 @@ if strcmp(alpha,'best')
 
             end
 
-            % fit quadratic to set alpha
+            % Fit quadratic to set alpha
             p = polyfit(alphar',rmses,2);
 %             aar = 0:0.005:1;
 %             y = polyval(p,aar);
@@ -261,21 +265,19 @@ e = yp-xp; % residuals
 % in_sample_error = sqrt(mean((yp-xp).^2));
 % out.insamplermse = in_sample_error;
 
-
-% Use MF_ResidualAnalysis on the residuals
-% 1) Get statistics on residuals
+%-------------------------------------------------------------------------------
+% Get statistics on residuals using MF_ResidualAnalysis
 residout = MF_ResidualAnalysis(e);
 
-% convert these to local outputs in quick loop
+% Convert these to local outputs in quick loop:
 fields = fieldnames(residout);
 for k = 1:length(fields)
     out.(fields{k}) = residout.(fields{k});
 end
 
-% t=1:length(yp);
-
 if doPlot
     figure('color','w'); box('on')
+    t = 1:length(yp);
     plot(t,x(3:N),'b',t,y(3:N),'k');
     legend('Obs', 'Fit');
     xlabel('Time');
@@ -284,7 +286,7 @@ end
 
 % ------------------------------------------------------------------------------
 function xf = SUB_fit_exp_smooth(x,a)
-    % Iterate over rolling window
+    % Iterate over rolling window:
     ntrain = length(x);
     xf = zeros(ntrain,1);
 
@@ -301,6 +303,5 @@ function xf = SUB_fit_exp_smooth(x,a)
         xf(ii+1,1) = s(ii);
     end
 end
-
 
 end

@@ -31,13 +31,19 @@ function out = EN_Randomize(y,randomizeHow,randomSeed)
 % fitting a function f(x) = Aexp(Bx).
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -83,7 +89,7 @@ end
 % Preliminaries
 % ------------------------------------------------------------------------------
 
-doPlot = 0; % Don't plot to screen by default:
+doPlot = false; % Don't plot to screen by default:
 N = length(y); % length of the time series
 
 % Set up the points through the randomization process at which the
@@ -92,6 +98,7 @@ randp_max = 2; % time series has been randomized to double its length
 rand_inc = 0.1; % this proportion of the time series has been randomized between calculations
 numCalcs = randp_max/rand_inc; % number of calculations required
 calc_ints = floor(randp_max*N/numCalcs);
+if calc_ints==0, calc_ints=1; end % round up for short time series
 calc_pts = (0:calc_ints:randp_max*N);
 if calc_pts(end) ~= randp_max*N;
     calc_pts = [calc_pts,randp_max*N];
@@ -116,7 +123,6 @@ BF_ResetSeed(randomSeed);
 
 for i = 1:N*randp_max
     switch randomizeHow
-
         case 'statdist'
             % randomize by substituting a random element of the time series by
             % a random element from the static original time series distribution

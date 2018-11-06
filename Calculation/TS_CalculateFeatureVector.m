@@ -11,9 +11,9 @@ function [featureVector,calcTimes,calcQuality] = TS_CalculateFeatureVector(tsStr
 % 				this makes sure the featureVector is all real numbers, and any
 %				special values (like NaNs, Infs, etc.) are coded with corresponding
 % 				labels in calcQuality.
-% 				codeSpecial = 0: special values are kept in the feature vector,
-% 								and any errors are coded as NaN.
-% 				codeSpecial = 1: featureVector is all real numbers, and is set to
+% 				codeSpecial = false [default]: special values are kept in the
+% 							feature vector, and any errors are coded as NaN.
+% 				codeSpecial = true: featureVector is all real numbers, and is set to
 % 							     zero where any special-valued outputs occur.
 % beVocal, whether to give user feedback on the computation.
 %
@@ -30,13 +30,19 @@ function [featureVector,calcTimes,calcQuality] = TS_CalculateFeatureVector(tsStr
 % >> features = TS_CalculateFeatureVector(randn(500,1));
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -55,10 +61,12 @@ if isnumeric(tsStruct)
 						'Data',tsData, ...
 						'ID',1, ...
 						'Length',length(tsData));
+elseif istable(tsStruct)
+	tsStruct = table2struct(tsStruct);
 end
 
 if nargin < 2
-	doParallel = 1;
+	doParallel = true;
 end
 
 if nargin < 3 || isempty(Operations) || ischar(Operations)
@@ -66,9 +74,10 @@ if nargin < 3 || isempty(Operations) || ischar(Operations)
 	if nargin >=3 && ischar(Operations)
 		theINPfile = Operations;
 	else
+		fprintf(1,'Importing default set of time-series features\n');
 		theINPfile = 'INP_ops.txt';
 	end
-	Operations = SQL_add('ops', theINPfile, 0, 0)';
+	Operations = SQL_add('ops',theINPfile,false,false)';
 end
 if isnumeric(Operations)
 	error('Provide an input file or a structure array of Operations');
@@ -76,22 +85,19 @@ end
 
 if nargin < 4 || isempty(MasterOperations)
 	% Use the default library:
-	MasterOperations = SQL_add('mops', 'INP_mops.txt', 0, 0)';
-end
-
-% Need to link operations to masters if not already supplied:
-if nargin < 4
+	MasterOperations = SQL_add('mops','INP_mops.txt',false,false)';
+	% Need to link operations to masters if not already supplied:
 	[Operations, MasterOperations] = TS_LinkOperationsWithMasters(Operations,MasterOperations);
 end
 
 % Whether to code up special-valued outputs
 if nargin < 5
-	codeSpecial = 0;
+	codeSpecial = false;
 end
 
 % Whether to give information out to screen
 if nargin < 6
-	beVocal = 1;
+	beVocal = true;
 end
 
 %-------------------------------------------------------------------------------
@@ -105,7 +111,7 @@ BF_CheckToolbox('statistics_toolbox');
 % ------------------------------------------------------------------------------
 if doParallel
     % Check that a parallel worker pool is open (if not attempt to initiate it):
-	doParallel = TS_InitiateParallel(0);
+	doParallel = TS_InitiateParallel(false);
 end
 if doParallel
 	fprintf(1,['Computation will be performed across multiple cores' ...
@@ -117,12 +123,13 @@ end
 % --------------------------------------------------------------------------
 %% Basic checking on the data
 % --------------------------------------------------------------------------
-% (Univariate and [N x 1])
+% (x a N x 1 column vector)
 x = tsStruct.Data;
 if size(x,2) ~= 1
 	if size(x,1) == 1
-		fprintf(1,['***** The time series %s is a row vector. Not sure how it snuck through the cracks, but I ' ...
-								'need a column vector...\n'],tsStruct.Name);
+		fprintf(1,['***** The time series %s is a row vector. Not sure how it snuck',...
+								' through the processing cracks, but I need' ...
+								' a column vector...\n'],tsStruct.Name);
 		fprintf(1,'I''ll transpose it for you for now....\n');
 		x = x';
 	else
@@ -130,13 +137,20 @@ if size(x,2) ~= 1
 		error('ERROR WITH ''%s'' -- is it multivariate or something weird? Skipping!\n',tsStruct.Name);
 	end
 end
+% (x contains no special values)
+if ~all(isfinite(x))
+	error('ERROR WITH ''%s'' -- contains non-finite values',tsStruct.Name);
+end
+if all(x==x(1))
+	warning('Data are a constant -- there is no information to derive from the time series; many features will fail')
+end
 
 % --------------------------------------------------------------------------
 %% Display information
 % --------------------------------------------------------------------------
-numCalc = length(Operations); % Number of features to calculate
+numCalc = height(Operations); % Number of features to calculate
 if numCalc == 0
-	error('Nothing to calculate :/')
+	error('Nothing to calculate :-/')
 end
 
 fprintf(1,'=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=\n');
@@ -147,7 +161,7 @@ fprintf(1,'=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 % Initialize variables:
 featureVector = zeros(numCalc,1); % Output of each operation
 calcQuality = zeros(numCalc,1); % Quality of output from each operation
-calcTimes = ones(numCalc,1)*NaN; % Calculation time for each operation
+calcTimes = nan(numCalc,1); % Calculation time for each operation
 
 % --------------------------------------------------------------------------
 %% Pre-Processing
@@ -167,16 +181,16 @@ fullTimer = tic;
 % Check through the metrics to determine which master functions are relevant for this run
 
 % Put the output from each Master operation in an element of MasterOutput
-MasterOutput = cell(length(MasterOperations),1); % Ouput structures
-MasterCalcTime = zeros(length(MasterOperations),1); % Calculation times for each master operation
+MasterOutput = cell(height(MasterOperations),1); % Ouput structures
+MasterCalcTime = zeros(height(MasterOperations),1); % Calculation times for each master operation
 
-Master_IDs_calc = unique([Operations.MasterID]); % Master_IDs that need to be calculated
-Master_ind_calc = arrayfun(@(x)find([MasterOperations.ID]==x,1),Master_IDs_calc); % Indicies of MasterOperations that need to be calculated
+Master_IDs_calc = unique(Operations.MasterID); % Master_IDs that need to be calculated
+Master_ind_calc = arrayfun(@(x)find(MasterOperations.ID==x,1),Master_IDs_calc); % Indicies of MasterOperations that need to be calculated
 numMopsToCalc = length(Master_IDs_calc); % Number of master operations to calculate
 
 % Index sliced variables to minimize the communication overhead in the parallel processing
-par_MasterOpCodeCalc = {MasterOperations(Master_ind_calc).Code}; % Cell array of strings of Code to evaluate
-par_mop_ids = [MasterOperations(Master_ind_calc).ID]; % mop_id for each master operation
+par_MasterOpCodeCalc = MasterOperations.Code(Master_ind_calc); % String array of strings of Code to evaluate
+par_mop_ids = MasterOperations.ID(Master_ind_calc); % mop_id for each master operation
 
 fprintf(1,'Evaluating %u master operations...\n',length(Master_IDs_calc));
 
@@ -191,13 +205,13 @@ TimeSeries_i_ID = tsStruct.ID; % Make a PARFOR-friendly version of the ID
 masterTimer = tic;
 if doParallel
 	parfor jj = 1:numMopsToCalc % PARFOR Loop
-		[MasterOutput_tmp{jj}, MasterCalcTime_tmp(jj)] = ...
+		[MasterOutput_tmp{jj},MasterCalcTime_tmp(jj)] = ...
 					TS_compute_masterloop(x,y,par_MasterOpCodeCalc{jj}, ...
 								par_mop_ids(jj),numMopsToCalc,beVocal,TimeSeries_i_ID,jj);
 	end
 else
 	for jj = 1:numMopsToCalc % Normal FOR Loop
-		[MasterOutput_tmp{jj}, MasterCalcTime_tmp(jj)] = ...
+		[MasterOutput_tmp{jj},MasterCalcTime_tmp(jj)] = ...
 					TS_compute_masterloop(x,y,par_MasterOpCodeCalc{jj}, ...
 								par_mop_ids(jj),numMopsToCalc,beVocal,TimeSeries_i_ID,jj);
 	end
@@ -209,40 +223,29 @@ MasterCalcTime(Master_ind_calc) = MasterCalcTime_tmp;
 
 fprintf(1,'%u master operations evaluated in %s ///\n\n',...
 					numMopsToCalc,BF_thetime(toc(masterTimer)));
-clear masterTimer
+clear('masterTimer')
 
 % --------------------------------------------------------------------------
 %% Assign all the results to the corresponding operations
 % --------------------------------------------------------------------------
 % Set sliced version of matching indicies across the range toCalc
 % Indices of MasterOperations corresponding to each Operation (i.e., each index of toCalc)
-par_OperationMasterInd = arrayfun(@(x)find([MasterOperations.ID]==x,1),[Operations.MasterID]);
-par_MasterOperationsLabel = {MasterOperations.Label}; % Master labels
-par_OperationCodeString = {Operations.CodeString}; % Code string for each operation to calculate (i.e., in toCalc)
+MasterOp_ind = arrayfun(@(x)find(MasterOperations.ID==x,1),Operations.MasterID);
 
-if doParallel
-	parfor jj = 1:numCalc
-		[featureVector(jj), calcQuality(jj), calcTimes(jj)] = TS_compute_oploop(MasterOutput{par_OperationMasterInd(jj)}, ...
-									   MasterCalcTime(par_OperationMasterInd(jj)), ...
-									   par_MasterOperationsLabel{par_OperationMasterInd(jj)}, ...
-									   par_OperationCodeString{jj});
-	end
-else
-	for jj = 1:numCalc
-		try
-			[featureVector(jj), calcQuality(jj), calcTimes(jj)] = TS_compute_oploop(MasterOutput{par_OperationMasterInd(jj)}, ...
-									   MasterCalcTime(par_OperationMasterInd(jj)), ...
-									   par_MasterOperationsLabel{par_OperationMasterInd(jj)}, ...
-									   par_OperationCodeString{jj});
-		catch
-			fprintf(1,'---Error with %s\n',par_OperationCodeString{jj});
-			if (MasterOperations(par_OperationMasterInd(jj)).ID == 0)
-				error(['The operations database is corrupt: there is no link ' ...
-						'from ''%s'' to a master code'], par_OperationCodeString{jj});
-			else
-				fprintf(1,'Error retrieving element %s from %s.\n', ...
-					par_OperationCodeString{jj}, par_MasterOperationsLabel{par_OperationMasterInd(jj)});
-			end
+for jj = 1:numCalc
+	try
+		[featureVector(jj),calcQuality(jj),calcTimes(jj)] = TS_compute_oploop(MasterOutput{MasterOp_ind(jj)}, ...
+							   MasterCalcTime(MasterOp_ind(jj)), ...
+							   MasterOperations.Label{MasterOp_ind(jj)}, ... % Master label
+							   Operations.CodeString{jj}); % Code string for each operation to calculate (i.e., in toCalc)
+	catch
+		fprintf(1,'---Error with %s\n',Operations.CodeString{jj});
+		if (MasterOperations.ID(MasterOp_ind(jj)) == 0)
+			error(['The operations database is corrupt: there is no link ' ...
+					'from ''%s'' to a master code'],Operations.CodeString{jj});
+		else
+			fprintf(1,'Error retrieving element %s from %s.\n', ...
+				Operations.CodeString{jj},MasterOperations.Label{MasterOp_ind(jj)});
 		end
 	end
 end

@@ -1,6 +1,5 @@
 function out = MF_steps_ahead(y,model,order,maxSteps)
-% MF_steps_ahead    Goodness of model predictions across a range of
-%                   prediction lengths.
+% MF_steps_ahead    Goodness of model predictions across prediction lengths.
 %
 % Given a model, characterizes the variation in goodness of model predictions
 % across a range of prediction lengths, l, which is made to vary from
@@ -28,13 +27,19 @@ function out = MF_steps_ahead(y,model,order,maxSteps)
 % ..., maxSteps (relative to a simple predictor).
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -86,11 +91,11 @@ end
 % ------------------------------------------------------------------------------
 %% Set up training and test sets
 % ------------------------------------------------------------------------------
-yTrain = y; % the whole time series data object
-yTest = y; % the whole time series data object
+yTrain = y; % the whole time series
+yTest = y; % the whole time series
 
 % ------------------------------------------------------------------------------
-%% Fit the model
+%% Fit the model on training data, yTrain (all data)
 % ------------------------------------------------------------------------------
 switch model
     case 'ar' % AR model

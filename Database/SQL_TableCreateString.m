@@ -5,13 +5,19 @@ function createString = SQL_TableCreateString(whatTable)
 % table, identified by the input string, whatTable.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -104,6 +110,13 @@ case 'Results'
         'FOREIGN KEY (ts_id) REFERENCES TimeSeries(ts_id) ON DELETE CASCADE ON UPDATE CASCADE, ' ...
         'FOREIGN KEY (op_id) REFERENCES Operations(op_id) ON DELETE CASCADE ON UPDATE CASCADE, ' ...
         'INDEX element (ts_id,op_id))'];
+
+case 'GitInfo'
+    createString = ['CREATE TABLE GitInfo ' ...
+                    '(branch VARCHAR(255), ' ...
+                    'hash VARCHAR(255), ' ...
+                    'remote VARCHAR(255), ' ...
+                    'url VARCHAR(255))'];
 
 otherwise
     error('Unknown table ''%s''',whatTable)

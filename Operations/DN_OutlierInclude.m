@@ -34,13 +34,19 @@ function out = DN_OutlierInclude(y,thresholdHow,inc)
 %               'abs' -- could give an idea as to asymmetries/nonstationarities??]
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -63,7 +69,7 @@ function out = DN_OutlierInclude(y,thresholdHow,inc)
 % Check a Curve Fitting toolbox license is available
 BF_CheckToolbox('curve_fitting_toolbox');
 
-doPlot = 0; % Plot some outputs
+doPlot = false; % Plot some outputs
 
 % ------------------------------------------------------------------------------
 %% Check Inputs
@@ -87,7 +93,6 @@ if nargin < 3
     inc = 0.01; % increment through z-scored time-series values
 end
 
-
 % ------------------------------------------------------------------------------
 %% Initialize thresholds
 % ------------------------------------------------------------------------------
@@ -95,15 +100,12 @@ switch thresholdHow
     case 'abs' % analyze absolute value deviations
         thr = (0:inc:max(abs(y)));
         tot = N;
-
     case 'p' % analyze only positive deviations
         thr = (0:inc:max(y));
         tot = sum(y >= 0);
-
     case 'n' % analyze only negative deviations
         thr = (0:inc:max(-y));
         tot = sum(y <= 0);
-
 otherwise
     error('Error thresholding with ''%s''. Must select either ''abs'', ''p'', or ''n''.',thresholdHow)
 end

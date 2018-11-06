@@ -16,15 +16,22 @@ function TS_cluster(distanceMetricRow,linkageMethodRow,distanceMetricCol,linkage
 % linkageMethodCol: linkage method for clustering operations (columns)
 % doSave: controls whether to save pairwise distance information (which can be large)
 %         to the local file (HCTSA_N.mat)
+% theFile: the file to load HCTSA data from and then cluster
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -95,10 +102,10 @@ numOps = matrixSize(2);
 if nargin < 5 || isempty(doSave)
     doSave = [1,1];
     if numTs > 1000
-        doSave(1) = 0;
+        doSave(1) = false;
     end
     if numOps > 1000
-        doSave(2) = 0;
+        doSave(2) = false;
     end
 end
 
@@ -158,7 +165,7 @@ function [ordering,didUpdate] = getDistances(dMetricNow,tsOrOps,theLinkageMethod
     end
 
     % Set to zero if no update was performed for (1) distances, and (2) linkage clustering
-    didUpdate = ones(2,1);
+    didUpdate = true(2,1);
 
     if ~(ischar(dMetricNow) && ismember(dMetricNow,{'none','nothing'}))
         % (can specify 'none' to do no clustering)
@@ -172,7 +179,7 @@ function [ordering,didUpdate] = getDistances(dMetricNow,tsOrOps,theLinkageMethod
                 fprintf(1,'Loaded %s distances (%s) stored in %s\n',...
                             theWhat,clust_data.distanceMetric,theFile);
                 Dij = clust_data.Dij;
-                didUpdate(1) = 0;
+                didUpdate(1) = false;
             else
                 fprintf(1,'Changing distance metric for %s from ''%s'' to ''%s''.\n',...
                             theWhat,clust_data.distanceMetric,dMetricNow);
@@ -187,7 +194,7 @@ function [ordering,didUpdate] = getDistances(dMetricNow,tsOrOps,theLinkageMethod
                 strcmp(clust_data.linkageMethod,theLinkageMethod)
             % Already been clusterd previously under the same distance metric and linkage method:
             ordering = clust_data.ord;
-            didUpdate(2) = 0;
+            didUpdate(2) = false;
         else
             ordering = BF_ClusterReorder([],Dij,theLinkageMethod);
         end

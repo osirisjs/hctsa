@@ -13,13 +13,19 @@ function sample_runscript_matlab(doParallelize,saveIncrement,fileName)
 % sample_runscript_matlab(1,'HCTSA.mat');
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -33,7 +39,7 @@ function sample_runscript_matlab(doParallelize,saveIncrement,fileName)
 %-------------------------------------------------------------------------------
 if nargin < 1
     % Set to 1 to
-    doParallelize = 1;
+    doParallelize = true;
 end
 
 if nargin < 2
@@ -49,7 +55,7 @@ end
 % ------------------------------------------------------------------------------
 % Get IDs of all time series in the hctsa datafile:
 [~,TimeSeries,Operations] = TS_LoadData(fileName);
-tsIDs = [TimeSeries.ID];
+tsIDs = TimeSeries.ID;
 
 % Set the IDs to compute at each iteration:
 ID_inc = 1:saveIncrement:length(tsIDs)+1;
@@ -57,14 +63,14 @@ ID_inc = 1:saveIncrement:length(tsIDs)+1;
 % Provide a quick message:
 fprintf(1,['About to calculate across %u time series and %u operations ' ...
                 'saving back to file every %u time series\n'], ...
-                length(TimeSeries),length(Operations),saveIncrement);
+                height(TimeSeries),height(Operations),saveIncrement);
 
 %-------------------------------------------------------------------------------
 % Running calculations:
 %-------------------------------------------------------------------------------
 % Loop across time series:
 for i = 1:length(ID_inc)-1
-	fprintf(1,'\n\n\nWe''re looking at Time series with IDs from %u--%u\n\n\n', ...
+	fprintf(1,'\n\n\nWe''re looking at time series with IDs from %u--%u\n\n\n', ...
                             	tsIDs(ID_inc(i)),tsIDs(ID_inc(i+1)-1));
 
     % Compute any missing values for this range of time series, then save back:

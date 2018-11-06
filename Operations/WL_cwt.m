@@ -16,13 +16,19 @@ function out = WL_cwt(y, wname, maxScale)
 % coefficients summed across scales.
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This function is free software: you can redistribute it and/or modify it under
 % the terms of the GNU General Public License as published by the Free Software
@@ -39,16 +45,8 @@ function out = WL_cwt(y, wname, maxScale)
 % ------------------------------------------------------------------------------
 
 % ------------------------------------------------------------------------------
-% Check that a Wavelet Toolbox license is available:
-% ------------------------------------------------------------------------------
-BF_CheckToolbox('wavelet_toolbox')
-
-% ------------------------------------------------------------------------------
 %% Check inputs:
 % ------------------------------------------------------------------------------
-doplot = 0; % plot outputs to figures
-N = length(y); % length of the time series
-
 if nargin < 2 || isempty(wname)
     wname = 'db3';
     fprintf(1,'Using default wavelet ''%s''\n',wname);
@@ -58,8 +56,16 @@ if nargin < 3 || isempty(maxScale)
     fprintf(1,'Using default maxScale of %u\n',maxScale);
 end
 
+% ------------------------------------------------------------------------------
+% Preliminaries
+% ------------------------------------------------------------------------------
+BF_CheckToolbox('wavelet_toolbox') % Check that a Wavelet Toolbox license is available:
+doPlot = false; % plot outputs to figures
+N = length(y); % length of the time series
+
+%-------------------------------------------------------------------------------
 scales = (1:maxScale);
-coeffs = cwt(y, scales, wname);
+coeffs = cwt(y,scales,wname);
 
 S = abs(coeffs.*coeffs); % power
 SC = 100*S./sum(S(:)); % scaled power is length-dependent
@@ -67,7 +73,7 @@ SC = 100*S./sum(S(:)); % scaled power is length-dependent
 % These SC values (percentage of energy in each coefficient) are what are
 % displayed in a scalogram (c.f., wscalogram function)
 
-if doplot
+if doPlot
     figure('color','w'); box('on');
     subplot(3,1,1)
     plot(y);
@@ -105,7 +111,7 @@ out.pover80 = poverfn(0.80);
 % Distribution of scaled power
 % Fit using Statistics Toolbox
 
-if doplot
+if doPlot
     figure('color','w');
     ksdensity(SC(:));
 end
@@ -131,6 +137,9 @@ out.SC_h = -sum(SC_a.*log(SC_a));
 % (could also do average, or proportion inside box with more energy than
 % average, ...)
 numBoxes = 10;
+if N < numBoxes
+    error('Time series too short');
+end
 dd_SC = zeros(maxScale, numBoxes);
 cutoffs = round(linspace(0, N, numBoxes+1));
 for i = 1:maxScale

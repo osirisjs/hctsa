@@ -7,13 +7,19 @@ function BF_AnnotatePoints(xy,TimeSeries,annotateParams)
 % annotateParams, structure of custom plotting parameters
 
 % ------------------------------------------------------------------------------
-% Copyright (C) 2015, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
+% Copyright (C) 2018, Ben D. Fulcher <ben.d.fulcher@gmail.com>,
 % <http://www.benfulcher.com>
 %
-% If you use this code for your research, please cite:
-% B. D. Fulcher, M. A. Little, N. S. Jones, "Highly comparative time-series
+% If you use this code for your research, please cite the following two papers:
+%
+% (1) B.D. Fulcher and N.S. Jones, "hctsa: A Computational Framework for Automated
+% Time-Series Phenotyping Using Massive Feature Extraction, Cell Systems 5: 527 (2017).
+% DOI: 10.1016/j.cels.2017.10.001
+%
+% (2) B.D. Fulcher, M.A. Little, N.S. Jones, "Highly comparative time-series
 % analysis: the empirical structure of time series and their methods",
-% J. Roy. Soc. Interface 10(83) 20130048 (2013). DOI: 10.1098/rsif.2013.0048
+% J. Roy. Soc. Interface 10(83) 20130048 (2013).
+% DOI: 10.1098/rsif.2013.0048
 %
 % This work is licensed under the Creative Commons
 % Attribution-NonCommercial-ShareAlike 4.0 International License. To view a copy of
@@ -22,7 +28,7 @@ function BF_AnnotatePoints(xy,TimeSeries,annotateParams)
 % California, 94041, USA.
 % ------------------------------------------------------------------------------
 
-numTimeSeries = length(TimeSeries);
+numTimeSeries = height(TimeSeries);
 
 % ------------------------------------------------------------------------------
 %% Set default plotting parameters:
@@ -55,7 +61,12 @@ end
 % textAnnotation can be: 'Name' (annotate name),
 % 'ID' (annotate ts_id), or 'none' (not annotation)
 if isfield(annotateParams,'textAnnotation')
-    textAnnotation = annotateParams.textAnnotation;
+    if ismember(annotateParams.textAnnotation,{'Name','ID','none'})
+        textAnnotation = annotateParams.textAnnotation;
+    else
+        warning('Unknown annotation type: %s',annotateParams.textAnnotation);
+        textAnnotation = 'none'; % no annotations by default
+    end
 else
     textAnnotation = 'none'; % no annotations by default
 end
@@ -83,18 +94,20 @@ pHeight = diff(pylim); % plot height
 alreadyPicked = zeros(numAnnotate,1); % record those already picked
 
 % Groups:
-if isfield(TimeSeries,'Group')
-    numGroups = length(unique([TimeSeries.Group]));
+if ismember('Group',TimeSeries.Properties.VariableNames)
+    numGroups = length(unique(TimeSeries.Group));
 else
     numGroups = 1;
 end
 
 % Colors:
-myColors = [BF_getcmap('set1',5,1); BF_getcmap('dark2',6,1)];
 if ~isfield(annotateParams,'groupColors')
     groupColors = GiveMeGroupColors(annotateParams,numGroups); % Set colors
 else
     groupColors = annotateParams.groupColors;
+end
+if numGroups==1
+    rainbowColors = [BF_getcmap('set1',5,1); BF_getcmap('dark2',6,1)];
 end
 
 %-------------------------------------------------------------------------------
@@ -116,7 +129,7 @@ for j = 1:numAnnotate
 
     % Get user to pick a point, then find closest datapoint to their input:
     if userInput % user input
-        newPointPicked = 0;
+        newPointPicked = false;
         numAttempts = 0;
         % Keep selecting until you get a new point (can't get stuck in infinite
         % loop because maximum annotations is number of datapoints). Still, you
@@ -127,7 +140,7 @@ for j = 1:numAnnotate
             iPlot = BF_ClosestPoint_ginput(xy_zscore,point_z);
             if ~ismember(iPlot,alreadyPicked)
                 alreadyPicked(j) = iPlot;
-                newPointPicked = 1;
+                newPointPicked = true;
             else
                 beep
                 numAttempts = numAttempts + 1;
@@ -146,22 +159,24 @@ for j = 1:numAnnotate
     plotPoint = xy(iPlot,:);
 
     % Get the group index of the selected time series:
-    if isfield(TimeSeries,'Group')
-        theGroup = TimeSeries(iPlot).Group;
+    if ismember('Group',TimeSeries.Properties.VariableNames)
+        theGroup = TimeSeries.Group(iPlot);
     else
         theGroup = 1;
     end
 
     % Crop the time series:
     if ~isempty(maxL)
-        timeSeriesSegment = TimeSeries(iPlot).Data(1:min(maxL,end));
+        timeSeriesSegment = TimeSeries.Data{iPlot}(1:min(maxL,end));
+    end
+
+    % When only one group, cycle through rainbow colors for each annotation:
+    if numGroups==1
+        % cycle through rainbow colors sequentially:
+        groupColors{1} = rainbowColors{rem(j,length(rainbowColors)-1)+1};
     end
 
     % Plot a circle around the annotated point:
-    if numGroups==1
-        % cycle through rainbow colors sequentially:
-        groupColors{1} = myColors{rem(j,length(myColors)-1)+1};
-    end
     if plotCircle
         plot(plotPoint(1),plotPoint(2),'o','MarkerEdgeColor',groupColors{theGroup},...
                             'MarkerFaceColor',brighten(groupColors{theGroup},0.5));
@@ -171,18 +186,25 @@ for j = 1:numAnnotate
     switch textAnnotation
     case 'Name'
         % Annotate text with names of datapoints:
-        text(plotPoint(1),plotPoint(2)-0.01*pHeight,TimeSeries(iPlot).Name,...
+        if ismember('Group',TimeSeries.Properties.VariableNames)
+            text(plotPoint(1),plotPoint(2)-0.01*pHeight,sprintf('%s-%u',...
+                    TimeSeries.Name{iPlot},TimeSeries.Group(iPlot)),...
                     'interpreter','none','FontSize',8,...
                     'color',brighten(groupColors{theGroup},-0.6));
+        else
+            text(plotPoint(1),plotPoint(2)-0.01*pHeight,TimeSeries.Name{iPlot},...
+                    'interpreter','none','FontSize',8,...
+                    'color',brighten(groupColors{theGroup},-0.6));
+        end
     case 'ID'
         % Annotate text with ts_id:
         text(plotPoint(1),plotPoint(2)-0.01*pHeight,...
-                num2str(TimeSeries(iPlot).ID),...
+                num2str(TimeSeries.ID(iPlot)),...
                     'interpreter','none','FontSize',8,...
                     'color',brighten(groupColors{theGroup},-0.6));
     case 'length'
         text(plotPoint(1),plotPoint(2)-0.01*pHeight,...
-                num2str(length(TimeSeries(iPlot).Data)),...
+                num2str(length(TimeSeries.Data{iPlot})),...
                 'interpreter','none','FontSize',8,...
                 'color',brighten(groupColors{theGroup},-0.6));
     end
